@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/database.dart';
 import 'package:drift/drift.dart' show Value;
+import '../data/database.dart';
+import '../widgets/app_feedback.dart';
 
 Future<void> showAddBikeSheet(
   BuildContext context,
@@ -151,7 +152,9 @@ class _AddBikeSheetState extends State<AddBikeSheet> {
           });
       }
 
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      showAppAlert(context, _isEditing ? 'Successfully Updated' : 'Successfully Added');
     }
 
     @override

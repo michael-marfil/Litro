@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../domain/maintenance.dart';
 import 'log_maintenance_sheet.dart';
+import '../widgets/app_feedback.dart';
 
 Future<void> showMaintenanceSheet(
   BuildContext context,
@@ -64,6 +65,10 @@ class MaintenanceSheet extends StatelessWidget {
     if (ok != true) return;
     await (db.delete(db.maintenanceItems)..where((t) => t.id.equals(item.id)))
         .go();
+
+    if (context.mounted) {
+      showAppAlert(context, '${item.name} removed');
+    }
   }
 
   String _subtitle(MaintenanceItem i) {
@@ -301,7 +306,9 @@ class _EditMaintenanceSheetState extends State<EditMaintenanceSheet> {
       );
     }
 
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    showAppAlert(context, 'Successfully Added');
   }
 
   @override

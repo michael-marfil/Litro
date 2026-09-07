@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
+import '../widgets/app_feedback.dart';
 import 'add_bike_sheet.dart';
 
 /// Returns 'add' if the user asked to add a bike, otherwise null.
@@ -74,6 +75,10 @@ class GarageSheet extends StatelessWidget {
             .write(const BikesCompanion(isActive: Value(true)));
       }
     });
+
+    if (context.mounted) {
+      showAppAlert(context, '${bike.nickname} deleted');
+    }
   }
 
   @override
