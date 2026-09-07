@@ -15,6 +15,7 @@ import 'stations_tab.dart';
 import 'stats_tab.dart';
 import 'maintenance_sheet.dart';
 import 'coach_overlay.dart';
+import 'settings_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
     const DashboardScreen({super.key, required this.db, required this.bike});
@@ -194,17 +195,27 @@ class _Header extends StatelessWidget {
                         ],
                     ),
                 ),
-                KeyedSubtree(
-                  key: chipKey,
-                  child: GestureDetector(
-                    onTap: () async {
-                      final action = await showGarageSheet(context, db);
-                      if (action == 'add' && context.mounted) {
-                        await showAddBikeSheet(context, db);
-                      }
-                    },
-                    child: _BikeChip(name: bike.nickname),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    KeyedSubtree(
+                      key: chipKey,
+                      child: GestureDetector(
+                        onTap: () async {
+                          final action = await showGarageSheet(context, db);
+                          if (action == 'add' && context.mounted) {
+                            await showAddBikeSheet(context, db);
+                          }
+                        },
+                        child: _BikeChip(name: bike.nickname),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.settings_outlined),
+                      color: theme.colorScheme.onSurfaceVariant,
+                      onPressed: () => showSettingsSheet(context, db),
+                    ),
+                  ],
                 ),
             ],
         );
