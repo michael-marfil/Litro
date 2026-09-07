@@ -16,6 +16,7 @@ import 'stats_tab.dart';
 import 'maintenance_sheet.dart';
 import 'coach_overlay.dart';
 import 'settings_sheet.dart';
+import '../widgets/app_feedback.dart';
 
 class DashboardScreen extends StatefulWidget {
     const DashboardScreen({super.key, required this.db, required this.bike});
@@ -1113,8 +1114,11 @@ class _RecentFills extends StatelessWidget {
         );
   }
 
-  Future<void> _delete(int id) {
-    return (db.delete(db.fuelEntries)..where((t) => t.id.equals(id))).go();
+  Future<void> _delete(BuildContext context, int id) async {
+    await (db.delete(db.fuelEntries)..where((t) => t.id.equals(id))).go();
+    if (context.mounted) {
+      showAppAlert(context, 'Fill-up Deleted');
+    }
   }
 
   Future<bool?> _confirmDelete(BuildContext context, FuelEntry e) {
@@ -1175,7 +1179,7 @@ class _RecentFills extends StatelessWidget {
                 key: ValueKey(r.entry.id),
                 direction: DismissDirection.endToStart,
                 confirmDismiss: (_) => _confirmDelete(context, r.entry),
-                onDismissed: (_) => _delete(r.entry.id),
+                onDismissed: (_) => _delete(context, r.entry.id),
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),

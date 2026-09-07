@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' show OrderingTerm, Value, StringExpressionOperators;
 
 import '../data/database.dart';
+import '../widgets/app_feedback.dart';
 
 enum _Money { liters, price, amount }
 Future<void> showAddEntrySheet(
@@ -242,7 +243,9 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         );
       }
 
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      showAppAlert(context, _isEditing ? 'Successfully Updated' : 'Successfully Saved');
     }
 
     Future<bool?> _confirmOverTank(double liters, double tank) {

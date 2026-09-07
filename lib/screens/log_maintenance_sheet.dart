@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
+import '../widgets/app_feedback.dart';
 
 Future<void> showLogMaintenanceSheet(
   BuildContext context,
@@ -93,7 +94,9 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
       ),
     );
 
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    showAppAlert(context, '${widget.item.name} Logged');
   }
 
   String get _intervalLine {

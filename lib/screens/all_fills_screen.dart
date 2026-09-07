@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../domain/fuel_stats.dart';
 import '../widgets/fill_row.dart';
+import '../widgets/app_feedback.dart';
 import 'add_entry_sheet.dart';
 
 class AllFillsScreen extends StatelessWidget {
@@ -34,8 +35,11 @@ class AllFillsScreen extends StatelessWidget {
         );
   }
 
-  Future<void> _delete(int id) {
-    return (db.delete(db.fuelEntries)..where((t) => t.id.equals(id))).go();
+  Future<void> _delete(BuildContext context, int id) async {
+    await (db.delete(db.fuelEntries)..where((t) => t.id.equals(id))).go();
+    if (context.mounted) {
+      showAppAlert(context, 'Full-up Deleted');
+    }
   }
 
   Future<bool?> _confirmDelete(BuildContext context, FuelEntry e) {
@@ -105,7 +109,7 @@ class AllFillsScreen extends StatelessWidget {
                 key: ValueKey(r.entry.id),
                 direction: DismissDirection.endToStart,
                 confirmDismiss: (_) => _confirmDelete(context, r.entry),
-                onDismissed: (_) => _delete(r.entry.id),
+                onDismissed: (_) => _delete(context, r.entry.id),
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),

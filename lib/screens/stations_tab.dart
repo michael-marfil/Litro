@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/database.dart';
+import '../widgets/app_feedback.dart';
 
 typedef _Summary = ({
   Station station,
@@ -85,6 +86,10 @@ class StationsTab extends StatelessWidget {
 
     if (ok != true) return;
     await (db.delete(db.stations)..where((t) => t.id.equals(s.id))).go();
+
+    if (context.mounted) {
+      showAppAlert(context, '${s.name} removed');
+    }
   }
 
   @override
