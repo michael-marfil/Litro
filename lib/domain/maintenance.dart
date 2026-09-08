@@ -1,4 +1,5 @@
 import '../data/database.dart';
+import 'fuel_stats.dart';
 
 /// Due-date maths for a bike's service schedule.
 ///
@@ -53,6 +54,61 @@ abstract final class Maintenance {
     if (byKm == null) return byTime;
     if (byTime == null) return byKm;
     return byKm > byTime ? byKm : byTime;
+  }
+
+  /// Average distance covered per day, from the spread of logged fill-ups.
+  /// Null until there are two entries far enough apart to mean anything.
+  static double? averageKmPerDay(List<FuelEntry> entries) {
+    if (entries.length < 3) return null;
+
+    final odometers = entries.map((e) => e.odometer).toList()..sort();
+    final dates = entries.map((e) => e.date).toList()..sort();
+
+    final km = odometers.last - odometers.first;
+    final days = dates.last.difference(dates.first).inDays;
+
+    // Too short a wisndow to extrapolate weeks ahead from.
+    if (km <= 0 || days < 14) return null;
+
+    return km / days;
+  }
+
+  /// When this item is expected to fall due.
+  ///
+  /// Distance-based items are projected using [averageKmPerDay]; time-based
+  /// ones are known outright. With both, the earlier date wins — "whichever
+  /// comes first". Null when there isn't enough histroy to say.
+  static DateTime? estimatedDueDate(
+    MaintenanceItem item,
+    List<FuelEntry> entries,
+    DateTime now,
+  ) {
+    DateTime? byTime;
+    final months = item.intervalMonths;
+    final lastDate = item.lastDate;
+    if (months != null && lastDate != null) {
+      byTime = DateTime(lastDate.year, lastDate.month + months, lastDate.day);
+    }
+
+    DateTime? byDistance;
+    final intervalKm = item.intervalKm;
+    final lastOdo = item.lastOdo;
+    final currentOdo = FuelStats.currentOdometer(entries);
+    final perDay = averageKmPerDay(entries);
+
+    if (intervalKm != null && lastOdo != null && currentOdo != null && perDay != null) {
+      final remaining = (lastOdo + intervalKm) - currentOdo;
+      final days = (remaining / perDay).ceil();
+      byDistance = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(Duration(days: days));
+    }
+
+    if (byTime == null) return byDistance;
+    if (byDistance == null) return byTime;
+    return byTime.isBefore(byDistance) ? byTime : byDistance;
   }
 
   /// Most urgent first. Untrackable items sink to the bottom.
