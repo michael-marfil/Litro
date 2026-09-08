@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' show Value;
 import '../data/database.dart';
 import '../widgets/app_feedback.dart';
+import '../data/bike_presets.dart';
 
 Future<void> showAddBikeSheet(
   BuildContext context,
@@ -41,6 +42,7 @@ class _AddBikeSheetState extends State<AddBikeSheet> {
     late final TextEditingController _factory;
 
     bool _saving = false;
+    BikePreset? _preset;
     bool get _isEditing => widget.bike != null;
 
     @override
@@ -192,6 +194,37 @@ class _AddBikeSheetState extends State<AddBikeSheet> {
                           style: theme.textTheme.titleLarge,
                         ),
                         const SizedBox(height: 20),
+                        if (!_isEditing) ...[
+                          DropdownButtonFormField<BikePreset>(
+                            initialValue: _preset,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Start from a model (optional)',
+                              helperText: 
+                                'Just a starting point — change '
+                                'anything that does not match.',
+                              helperMaxLines: 2,
+                            ),
+                            items: [
+                              for (final p in bikePresets)
+                                  DropdownMenuItem(
+                                    value: p,
+                                    child: Text(p.label),
+                                  ),
+                            ],
+                            onChanged: (p) {
+                              if (p == null) return;
+                              setState(() {
+                                _preset = p;
+                                _make.text = p.make;
+                                _model.text = p.model;
+                                _tank.text = p.tankCapacityL.toString();
+                                _factory.text = p.factoryKmPerL?.toString() ?? '';
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         _Field(
                             controller: _nickname,
                             label: 'Nickname',
