@@ -721,6 +721,11 @@ class _MaintenanceStripState extends State<_MaintenanceStrip> {
                         item: shown[i],
                         currentOdo: currentOdo,
                         now: now,
+                        dueDate: Maintenance.estimatedDueDate(
+                          shown[i],
+                          entries,
+                          now,
+                        ),
                         onTap: () => showLogMaintenanceSheet(
                           context,
                           db,
@@ -767,12 +772,14 @@ class _MaintenanceChip extends StatelessWidget {
     required this.item,
     required this.currentOdo,
     required this.now,
+    required this.dueDate,
     required this.onTap,
   });
 
   final MaintenanceItem item;
   final int? currentOdo;
   final DateTime now;
+  final DateTime? dueDate;
   final VoidCallback onTap;
 
   @override
@@ -812,9 +819,10 @@ class _MaintenanceChip extends StatelessWidget {
     } else {
       interval = 'no interval';
     }
+    final estimate = dueDate == null
+        ? ''
+        : ' · ≈ ${DateFormat('d MMM').format(dueDate!)}';
 
-    // return SizedBox(
-    //   width: 172,
       return ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Material(
@@ -851,7 +859,7 @@ class _MaintenanceChip extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          interval,
+                          '$interval$estimate',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
