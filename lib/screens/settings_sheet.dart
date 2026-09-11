@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 
 import '../data/backup.dart';
 import '../data/database.dart';
+import '../data/notifications.dart';
 import '../widgets/app_feedback.dart';
 
 Future<void> showSettingsSheet(BuildContext context, AppDatabase db) {
@@ -32,6 +34,9 @@ class SettingsSheet extends StatefulWidget {
 
 class _SettingsSheetState extends State<SettingsSheet> {
   String? _busy; // 'backup' | 'restore' | null
+  bool _reminders = false;
+  ({String name, DateTime date})? _next;
+  int _scheduled = 0;
 
   Future<void> _backup() async {
     try {
@@ -115,6 +120,53 @@ class _SettingsSheetState extends State<SettingsSheet> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadReminderState();
+  }
+
+  Future<void> _loadReminderState() async {
+    final on = await Notifications.remindersEnabled();
+    final next = on ? await Notifications.nextDue(widget.db) : null;
+    final count = on ? (await Notifications.pending()).length : 0;
+    if (!mounted) return;
+    setState(() {
+      _reminders = on;
+      _next = next;
+      _scheduled = count;
+    });
+  }
+
+  Future<void> _toggleReminders(bool value) async {
+    if (value) {
+      final granted = await Notifications.requestPermission();
+      if (!mounted) return;
+      if (!granted) {
+        showAppAlert(
+          context,
+          'Notifications are turned off for Litro',
+          kind: AlertKind.error,
+        );
+        return;
+      }
+    }
+
+    await Notifications.setRemindersEnabled(widget.db, value);
+    await _loadReminderState();
+  }
+
+  String get _reminderSubtitle {
+    if (!_reminders) return 'Turn on to be reminded before a service.';
+
+    final next = _next;
+    if (next == null) return 'On — nothing due yet.';
+
+    final date = DateFormat('d MMM').format(next.date);
+    final others = _scheduled > 1 ? ' · +${_scheduled - 1} more' : '';
+    return 'Next: ${next.name}, $date$others';
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -182,6 +234,17 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 : null,
             enabled: _busy == null,
             onTap: _busy == null ? _restore : null,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: Icon(
+              Icons.notifications_none,
+              color: theme.colorScheme.primary,
+            ),
+            title: const Text('Maintenance reminders'),
+            subtitle: Text(_reminderSubtitle),
+            value: _reminders,
+            onChanged: _busy == null ? _toggleReminders : null,
           ),
           const SizedBox(height: 8),
           Text(
