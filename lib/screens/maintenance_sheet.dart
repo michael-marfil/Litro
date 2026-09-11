@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/database.dart';
+import '../data/notifications.dart';
 import '../domain/maintenance.dart';
 import 'log_maintenance_sheet.dart';
 import '../widgets/app_feedback.dart';
@@ -306,6 +307,7 @@ class _EditMaintenanceSheetState extends State<EditMaintenanceSheet> {
       );
     }
 
+    await Notifications.sync(widget.db);
     if (!mounted) return;
     Navigator.of(context).pop();
     showAppAlert(context, 'Successfully Added');

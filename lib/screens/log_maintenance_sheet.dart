@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
+import '../data/notifications.dart';
 import '../widgets/app_feedback.dart';
 
 Future<void> showLogMaintenanceSheet(
@@ -94,6 +95,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
       ),
     );
 
+    await Notifications.sync(widget.db);
     if (!mounted) return;
     Navigator.of(context).pop();
     showAppAlert(context, '${widget.item.name} Logged');

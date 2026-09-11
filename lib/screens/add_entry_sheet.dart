@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' show OrderingTerm, Value, StringExpressionOperators;
 
 import '../data/database.dart';
+import '../data/notifications.dart';
 import '../widgets/app_feedback.dart';
 
 enum _Money { liters, price, amount }
@@ -243,6 +244,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         );
       }
 
+      await Notifications.sync(widget.db, warnNow: true);
       if (!mounted) return;
       Navigator.of(context).pop();
       showAppAlert(context, _isEditing ? 'Successfully Updated' : 'Successfully Saved');
