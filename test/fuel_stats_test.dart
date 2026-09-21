@@ -55,7 +55,10 @@ void main() {
     test('does not depend on input order', () {
       final a = entry(odometer: 35000, liters: 5, amountPaid: 400);
       final b = entry(odometer: 35300, liters: 6, amountPaid: 480);
-      expect(FuelStats.lifetimeKmPerL([b, a]), FuelStats.lifetimeKmPerL([a, b]));
+      expect(
+        FuelStats.lifetimeKmPerL([b, a]),
+        FuelStats.lifetimeKmPerL([a, b]),
+      );
     });
   });
 
@@ -81,9 +84,24 @@ void main() {
   group('spendInMonth', () {
     test('counts only the given month', () {
       final entries = [
-        entry(odometer: 35000, liters: 5, amountPaid: 400, date: DateTime(2026, 7, 20)),
-        entry(odometer: 35300, liters: 6, amountPaid: 480, date: DateTime(2026, 8, 3)),
-        entry(odometer: 35600, liters: 4, amountPaid: 320, date: DateTime(2026, 8, 28)),
+        entry(
+          odometer: 35000,
+          liters: 5,
+          amountPaid: 400,
+          date: DateTime(2026, 7, 20),
+        ),
+        entry(
+          odometer: 35300,
+          liters: 6,
+          amountPaid: 480,
+          date: DateTime(2026, 8, 3),
+        ),
+        entry(
+          odometer: 35600,
+          liters: 4,
+          amountPaid: 320,
+          date: DateTime(2026, 8, 28),
+        ),
       ];
       expect(FuelStats.spendInMonth(entries, DateTime(2026, 8, 15)), 800);
     });
@@ -93,7 +111,7 @@ void main() {
     });
   });
 
-  group('latestFullTankKmPerL',  () {
+  group('latestFullTankKmPerL', () {
     test('is null with no entries', () {
       expect(FuelStats.latestFullTankKmPerL([]), isNull);
     });
@@ -116,7 +134,7 @@ void main() {
       expect(FuelStats.latestFullTankKmPerL(entries), closeTo(50.0, 0.001));
     });
 
-     test('counts partial top-ups in between', () {
+    test('counts partial top-ups in between', () {
       final entries = [
         entry(odometer: 35000, liters: 5, amountPaid: 400),
         entry(odometer: 35150, liters: 2, amountPaid: 160, isFullTank: false),

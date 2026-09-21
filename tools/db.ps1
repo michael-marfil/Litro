@@ -27,7 +27,7 @@ if ($Query) {
     exit
 }
 
-foreach ($t in @('bikes', 'stations', 'fuel_entries')) {
+foreach ($t in @('bikes', 'stations', 'fuel_entries', 'maintenance_items')) {
     $n = (& $sq $tmp "select count(*) from $t;")
     Write-Host ""
     Write-Host "--- $t ($n rows) ---" -ForegroundColor Cyan
