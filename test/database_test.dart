@@ -14,15 +14,17 @@ void main() {
   });
 
   test('inserting a bike round-trips every field', () async {
-    await db.into(db.bikes).insert(
-      BikesCompanion.insert(
-        nickname: 'Daily Click',
-        make: 'Honda',
-        model: 'Click 125',
-        oilIntervalKm: 2000,
-        isActive: const Value(true),
-      ),
-    );
+    await db
+        .into(db.bikes)
+        .insert(
+          BikesCompanion.insert(
+            nickname: 'Daily Click',
+            make: 'Honda',
+            model: 'Click 125',
+            oilIntervalKm: 2000,
+            isActive: const Value(true),
+          ),
+        );
 
     final bikes = await db.select(db.bikes).get();
     expect(bikes, hasLength(1));
@@ -39,14 +41,16 @@ void main() {
     await pumpEventQueue();
     expect(emissions.last, isEmpty);
 
-    await db.into(db.bikes).insert(
-      BikesCompanion.insert(
-        nickname: 'Raider',
-        make: 'Suzuki',
-        model: 'Raider R150',
-        oilIntervalKm: 3000,
-      ),
-    );
+    await db
+        .into(db.bikes)
+        .insert(
+          BikesCompanion.insert(
+            nickname: 'Raider',
+            make: 'Suzuki',
+            model: 'Raider R150',
+            oilIntervalKm: 3000,
+          ),
+        );
     await pumpEventQueue();
 
     expect(emissions.last, hasLength(1));

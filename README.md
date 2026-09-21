@@ -1,5 +1,7 @@
 # Litro
 
+![tests](https://github.com/michael-marfil/litro/actions/workflows/test.yml/badge.svg)
+
 **A motorcycle fuel and maintenance tracker for daily riders.** Log a fill-up in about ten
 seconds; Litro works out what your bike actually drinks, what it costs you per kilometre,
 and when its next service is due.
@@ -19,9 +21,12 @@ get in Legazpi traffic, and I wanted to know the real one.
 
 - **Measures real fuel efficiency** between full tanks, not from the manufacturer's claim
 - **Any two of {litres, price/L, amount paid}** computes the third while you type
-- **Tracks maintenance** — oil, chain, brakes, anything on a schedule, by distance or by time
+- **Tracks maintenance** — oil, chain, CVT, anything on a schedule, by distance or by time
+- **Predicts the due date** from your actual km/day, and reminds you a week ahead
 - **Compares stations** by the price you actually paid, cheapest highlighted
 - **Charts** efficiency and gas-price trends over time
+- **Starts from a preset** — nine common PH models with tank size and service intervals
+- **Backs up and restores** your whole history as a file you own
 - **Handles multiple bikes**, with every number scoped to the one you're riding
 - **Works with no signal.** No account, no server, nothing to sign up for
 
@@ -69,6 +74,24 @@ columns into a real maintenance row. Nobody lost their tracking.
 That matters more than usual here: there's no server, so a migration that silently wipes
 someone's history is unrecoverable and invisible.
 
+### Restore validates before it destroys
+
+Import is the dangerous half of backup — it replaces everything. So `parse` reads the
+entire file, checks the envelope, and refuses anything from a newer format version
+*before* a single row is touched. Only then does `apply` run, inside one transaction.
+
+This was not theoretical. An early version looked for a `mantenanceItem` key that the exporter writes as `maintenanceItems` — one missing letter. It silently wiped every maintenance item and reported success. The typo was the bug; the real fix was making a missing key thrown instead of quitely returning an empty list.
+
+### Unit tests didn't catch the prediction bug — real data did
+
+Due dates are estimated from average km/day. Eight units tests passed. Then the app told
+me my oil change was due in three days, because my real fill-ups were clustered into two
+days and the average came out at 600 km/day.
+
+The fix is two guards: at least three fill-ups, and at least fourteen days of history.
+Anything less returns `null`, and the UI shows no estimate rather than a wrong one. Tests
+prove the maths; only real data reveals the assumption the maths was built on.
+
 ### Nothing invented
 
 A number that can't be computed renders as `—`, never `0.0`. One fill-up genuinely cannot
@@ -85,6 +108,8 @@ Comparison lines hide entirely when the bike has no manufacturer figure to compa
 | **[Drift](https://drift.simonbinder.eu/)** | typed SQLite, reactive queries, schema migrations |
 | **[fl_chart](https://pub.dev/packages/fl_chart)** | efficiency and price trends |
 | **[intl](https://pub.dev/packages/intl)** | `en_PH` peso and date formatting |
+| **[flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications)** | scheduled reminders that survive a reboot |
+| **[share_plus](https://pub.dev/packages/share_plus) / [file_picker](https://pub.dev/packages/file_picker)** | backup out, restore in |
 | `CustomPainter` | the arc gauge and the coach-mark spotlight, drawn by hand |
 
 State is plain `setState` and `StreamBuilder`. The database is the single source of truth,
@@ -124,7 +149,6 @@ test/          domain and database tests
 
 ## Roadmap
 
-- [ ] Export and import your data as a file — the missing piece for a phone you might lose
-- [ ] Notifications when maintenance is close, using average km/day to predict the date
-- [ ] Preset list of common PH models to pre-fill tank size and service intervals
 - [ ] GPS-tagged stations on a map, cheapest highlighted
+- [ ] Tapping a reminder opens that maintenance item, not just the app
+- [ ] Optional cloud backup, so a lost phone isn't a lost history
