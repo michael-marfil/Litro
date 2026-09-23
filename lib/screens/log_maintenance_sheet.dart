@@ -51,6 +51,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
   
   DateTime _date = DateTime.now();
   bool _saving = false;
+  int? _previousOdo;
 
   @override
   void initState() {
@@ -59,19 +60,29 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
       text: widget.currentOdometer?.toString() ?? '',
     );
     _cost = TextEditingController();
+    _loadPreviousService();
   }
 
   @override
   void dispose() {
     _odometer.dispose();
-    super.dispose();
     _cost.dispose();
+    super.dispose();
   }
 
-  String? _positive(String? v) {
+  String? _serviceOdometer(String? v) {
     final n = int.tryParse(v?.trim() ?? '');
     if (n == null) return 'Numbers only';
     if (n <= 0) return 'Must be more than 0';
+
+    // An odometer only goes up. A reading below the last recorded service
+    // is a typo - this is how 4,000 km got logged on a 38,000 km bike.
+    final previous = _previousOdo;
+    if (previous != null && n < previous) {
+      final km = NumberFormat.decimalPattern().format(previous);
+      return 'Last service was at $km km';
+    }
+
     return null;
   }
 
@@ -185,6 +196,30 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
         .watch();
   }
 
+    /// The highest odometer this item was ever serviced at - the floor for a
+  /// new entry.
+  Future<void> _loadPreviousService() async {
+    final row =
+        await (widget.db.select(widget.db.serviceLogs)
+              ..where((t) => t.itemId.equals(widget.item.id))
+              ..orderBy([(t) => OrderingTerm.desc(t.odometer)])
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (!mounted) return;
+    setState(() {
+      _previousOdo = row?.odometer;
+
+      // Two sources know the odometer: fuel entries (the prefill) and past
+      // services. Offer whichever is higher, so the form never opens on a
+      // value its own validator would reject.
+      final shown = int.tryParse(_odometer.text.trim()) ?? 0;
+      if (row != null && row.odometer > shown) {
+        _odometer.text = row.odometer.toString();
+      }
+    });
+  }
+
   Widget _historySection(ThemeData theme) {
     return StreamBuilder<List<ServiceLog>>(
       stream: _history(),
@@ -285,7 +320,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
               decoration: const InputDecoration(
                 labelText: 'Odometer at service (km)',
               ),
-              validator: _positive,
+              validator: _serviceOdometer,
             ),
             const SizedBox(height: 16),
             TextFormField(
