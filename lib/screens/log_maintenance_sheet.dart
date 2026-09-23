@@ -1,5 +1,6 @@
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, OrderingTerm;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../data/database.dart';
 import '../data/notifications.dart';
@@ -46,6 +47,7 @@ class LogMaintenanceSheet extends StatefulWidget {
 class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _odometer;
+  late final TextEditingController _cost;
   
   DateTime _date = DateTime.now();
   bool _saving = false;
@@ -56,18 +58,30 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     _odometer = TextEditingController(
       text: widget.currentOdometer?.toString() ?? '',
     );
+    _cost = TextEditingController();
   }
 
   @override
   void dispose() {
     _odometer.dispose();
     super.dispose();
+    _cost.dispose();
   }
 
   String? _positive(String? v) {
     final n = int.tryParse(v?.trim() ?? '');
     if (n == null) return 'Numbers only';
     if (n <= 0) return 'Must be more than 0';
+    return null;
+  }
+
+  /// Cost is optional - blank is a valid answer.
+  String? _optionalMoney(String? v) {
+    final s = v?.trim() ?? '';
+    if (s.isEmpty) return null;
+    final n = double.tryParse(s);
+    if (n == null) return 'Numbers only';
+    if (n < 0) return "Can't be negative";
     return null;
   }
 
@@ -85,15 +99,34 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _saving = true);
+    final odo = int.parse(_odometer.text.trim());
+    final costText = _cost.text.trim();
+    final cost = costText.isEmpty ? null : double.parse(costText);
 
-    await (widget.db.update(widget.db.maintenanceItems)
-          ..where((t) => t.id.equals(widget.item.id)))
-        .write(
-      MaintenanceItemsCompanion(
-        lastOdo: Value(int.parse(_odometer.text.trim())),
-        lastDate:  Value(_date),
-      ),
-    );
+    // One writer, one transaction. The log is the record; the item's
+    // lastOdo/lastDate are a cache of its newest row. Because both writes
+    // live here and nowhere else, they can't drift apart.
+    await widget.db.transaction(() async {
+      await widget.db
+        .into(widget.db.serviceLogs)
+        .insert(
+          ServiceLogsCompanion.insert(
+            itemId: widget.item.id,
+            odometer: odo,
+            date: _date,
+            cost: Value(cost),
+          ),
+        );
+
+      await (widget.db.update(widget.db.maintenanceItems)
+            ..where((t) => t.id.equals(widget.item.id)))
+          .write(
+            MaintenanceItemsCompanion(
+              lastOdo: Value(odo),
+              lastDate: Value(_date),
+            ),
+          );
+    });
 
     await Notifications.sync(widget.db);
     if (!mounted) return;
@@ -110,6 +143,94 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     if (km != null) return 'Next due $km km after this.';
     if (months != null) return 'Next due $months months after this.';
     return 'No interval set for this item yet.';
+  }
+
+  /// Removes one service and repairs the cache behind it.
+  Future<void> _deleteLog(ServiceLog log) async {
+    await widget.db.transaction(() async {
+      await (widget.db.delete(widget.db.serviceLogs)
+            ..where((t) => t.id.equals(log.id)))
+          .go();
+
+      // The cache mirrors the newest surviving log - or nothing at all, if
+      // that was the last one. This is the single writer keeping its promise.
+      final newest =
+          await (widget.db.select(widget.db.serviceLogs)
+                ..where((t) => t.itemId.equals(widget.item.id))
+                ..orderBy([(t) => OrderingTerm.desc(t.date)])
+                ..limit(1))
+              .getSingleOrNull();
+
+      await (widget.db.update(widget.db.maintenanceItems)
+            ..where((t) => t.id.equals(widget.item.id)))
+          .write(
+            MaintenanceItemsCompanion(
+              lastOdo: Value(newest?.odometer),
+              lastDate: Value(newest?.date),
+            ),
+          );
+    });
+
+    await Notifications.sync(widget.db);
+    if (!mounted) return;
+    showAppAlert(context, 'Service removed');
+  }
+
+  /// The three most recent services, newest first.
+  Stream<List<ServiceLog>> _history() {
+    return (widget.db.select(widget.db.serviceLogs)
+          ..where((t) => t.itemId.equals(widget.item.id))
+          ..orderBy([(t) => OrderingTerm.desc(t.date)])
+          ..limit(3))
+        .watch();
+  }
+
+  Widget _historySection(ThemeData theme) {
+    return StreamBuilder<List<ServiceLog>>(
+      stream: _history(),
+      builder: (context, snapshot) {
+        final logs = snapshot.data;
+        if (logs == null || logs.isEmpty) return const SizedBox.shrink();
+
+        final date = DateFormat('d MMM yyyy');
+        final km = NumberFormat.decimalPattern();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Text(
+              'PREVIOUSLY',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            for (final log in logs)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${date.format(log.date)} · ${km.format(log.odometer)} km'
+                      '${log.cost == null ? '' : ' · ₱${log.cost!.toStringAsFixed(0)}'}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    onPressed: () => _deleteLog(log),
+                  ),
+                ],
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -146,11 +267,12 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
             const SizedBox(height: 6),
             Text(
               _intervalLine,
-              style: theme.textTheme.bodySmall?.copyWith(
+                style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 20),
+            _historySection(theme),
             OutlinedButton.icon(
               onPressed: _pickDate,
               icon: const Icon(Icons.calendar_today, size: 16),
@@ -164,6 +286,17 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
                 labelText: 'Odometer at service (km)',
               ),
               validator: _positive,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _cost,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Cost',
+                prefixText: '₱ ',
+                helperText: 'Optional - parts and labour',
+              ),
+              validator: _optionalMoney,
             ),
             const SizedBox(height: 16),
             FilledButton(

@@ -3,7 +3,7 @@ import 'package:litro/screens/log_maintenance_sheet.dart';
 import 'dart:math';
 import '../data/database.dart';
 import 'add_entry_sheet.dart';
-import 'package:drift/drift.dart' show OrderingTerm, leftOuterJoin;
+import 'package:drift/drift.dart' show OrderingTerm, leftOuterJoin, innerJoin;
 import 'package:intl/intl.dart';
 import '../domain/fuel_stats.dart';
 import 'add_bike_sheet.dart';
@@ -546,7 +546,19 @@ class _StatRow extends StatelessWidget {
 
   final AppDatabase db;
   final int bikeId;
+  /// Every service logged for this bike, across all its maintenance items.
+  /// Service logs hang off items, and items hang off bikes - hence the join.
+  Stream<List<ServiceLog>> _serviceLogs() {
+    final q =
+        db.select(db.serviceLogs).join([
+          innerJoin(
+            db.maintenanceItems,
+            db.maintenanceItems.id.equalsExp(db.serviceLogs.itemId),
+          ),
+        ])..where(db.maintenanceItems.bikeId.equals(bikeId));
 
+    return q.map((row) => row.readTable(db.serviceLogs)).watch();
+  }
   @override
   Widget build(BuildContext context) {
     final query = db.select(db.fuelEntries)
@@ -558,7 +570,6 @@ class _StatRow extends StatelessWidget {
         final entries = snapshot.data ?? const <FuelEntry>[];
 
         final lifetime = FuelStats.lifetimeKmPerL(entries);
-        final cost = FuelStats.costPerKm(entries);
         final month = FuelStats.spendInMonth(entries, DateTime.now());
 
         final peso = NumberFormat.currency(
@@ -587,9 +598,17 @@ class _StatRow extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _StatTile(
-                  label: 'COST / KM',
-                  value: cost == null ? '—' : '₱${cost.toStringAsFixed(2)}',
+                child: StreamBuilder<List<ServiceLog>>(
+                  stream: _serviceLogs(),
+                  builder: (context, serviceSnapshot) {
+                    final logs = serviceSnapshot.data ?? const <ServiceLog>[];
+                    final allIn = Maintenance.allInCostPerKm(entries, logs);
+                    
+                    return _StatTile(
+                      label: 'ALL-IN / KM',
+                      value: allIn == null ? '—' : '₱${allIn.toStringAsFixed(2)}',
+                    );
+                  },
                 ),
               ),
             ],

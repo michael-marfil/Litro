@@ -53,13 +53,24 @@ class MaintenanceItems extends Table {
   DateTimeColumn get lastDate => dateTime().nullable()();
 }
 
-@DriftDatabase(tables: [Bikes, Stations, FuelEntries, MaintenanceItems])
+/// One time a service was actually performed. The record; the item's
+/// lastOdo/lastDate are a cache of the newest row here.
+class ServiceLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get itemId => integer().references(MaintenanceItems, #id, onDelete: KeyAction.cascade)();
+  IntColumn get odometer => integer()();
+  DateTimeColumn get date => dateTime()();
+  RealColumn get cost => real().nullable()();
+  TextColumn get note => text().nullable()();
+}
+
+@DriftDatabase(tables: [Bikes, Stations, FuelEntries, MaintenanceItems, ServiceLogs])
 class AppDatabase extends _$AppDatabase {
     AppDatabase() : super(driftDatabase(name: 'litro'));
     AppDatabase.forTesting(super.executor);
 
     @override
-    int get schemaVersion => 3;
+    int get schemaVersion => 4;
 
     @override
     MigrationStrategy get migration => MigrationStrategy(
@@ -80,6 +91,25 @@ class AppDatabase extends _$AppDatabase {
                 intervalKm: Value(b.oilIntervalKm),
                 lastOdo: Value(b.lastOilChangeOdo),
                 lastDate: Value(b.lastOilChangeDate),
+              ),
+            );
+          }
+        }
+        if (from < 4) {
+          await m.createTable(serviceLogs);
+
+          // Turn each item's last-service cache into a real log row, so
+          // history and cache agree from the first moment they coexist.
+          for (final item in await select(maintenanceItems).get()) {
+            final odo = item.lastOdo;
+            final date = item.lastDate;
+            if (odo == null || date == null) continue;
+
+            await into(serviceLogs).insert(
+              ServiceLogsCompanion.insert(
+                itemId: item.id,
+                odometer: odo,
+                date: date,
               ),
             );
           }
