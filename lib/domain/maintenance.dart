@@ -125,4 +125,21 @@ abstract final class Maintenance {
     });
     return sorted;
   }
+
+  /// Total spent on services. A log with no cost counts as zero, which makes
+  /// this a floor, not a guess - see allInCostPerKm.
+  static double serviceSpend(List<ServiceLog> logs) =>
+    logs.fold<double>(0, (sum, l) => sum + (l.cost ?? 0));
+
+  /// Fuel plus servicing, per kilometre - what the bike actually costs to run.
+  /// Null until there's distance to divide by.
+  static double? allInCostPerKm(
+    List<FuelEntry> entries,
+    List<ServiceLog> logs,
+  ) {
+    final distance = FuelStats.distanceKm(entries);
+    if (distance <= 0) return null;
+    final fuel = entries.fold<double>(0, (sum, e) => sum + e.amountPaid);
+    return (fuel + serviceSpend(logs)) / distance;
+  }
 }

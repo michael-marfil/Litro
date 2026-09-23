@@ -33,6 +33,16 @@ FuelEntry fill(int odometer, DateTime date) {
   );
 }
 
+ServiceLog service(int odometer, DateTime date, {double? cost}) {
+  return ServiceLog(
+    id: odometer,
+    itemId: 1,
+    odometer: odometer,
+    date: date,
+    cost: cost,
+  );
+}
+
 void main() {
   final now = DateTime(2026, 9, 4);
 
@@ -218,6 +228,55 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('serviceSpend', () {
+    test('adds up what was recorded', () {
+      expect(
+        Maintenance.serviceSpend([
+          service(35000, DateTime(2026, 8, 5), cost: 450),
+          service(35700, DateTime(2026, 9, 4), cost: 570),
+        ]),
+        1020,
+      );
+    });
+
+    test('treats a missing cost as zero, not as unknown', () {
+      expect(
+        Maintenance.serviceSpend([
+          service(35000, DateTime(2026, 8, 5), cost: 450),
+          service(35700, DateTime(2026, 9, 4)),
+        ]),
+        450,
+      );
+    });
+
+    test('is zero with no services', () {
+      expect(Maintenance.serviceSpend([]), 0);
+    });
+  });
+
+  group('allInCostPerKm', () {
+    // rides is 3 fills at ₱312 over 750 km - ₱1,248 of fuel.
+    test('is fuel alone when nothing has been serviced', () {
+      expect(
+        Maintenance.allInCostPerKm(rides, []),
+        closeTo(1.248, 0.001),
+      );
+    });
+
+    test('adds servicing on top', () {
+      expect(
+        Maintenance.allInCostPerKm(rides, [
+          service(35400, DateTime(2026, 8, 20), cost: 570),
+        ]),
+        closeTo(2.008, 0.001),
+      );
+    });
+
+    test('is null with no distance to divide by', () {
+      expect(Maintenance.allInCostPerKm([], []), isNull);
     });
   });
 }
