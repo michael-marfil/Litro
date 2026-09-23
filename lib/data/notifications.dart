@@ -42,10 +42,18 @@ abstract final class Notifications {
   ) {
     final km = Maintenance.kmRemaining(item, currentOdo);
     final date = DateFormat('d MMM').format(dueDate);
+    final fmt = NumberFormat.decimalPattern();
+
+    if (km != null && km < 0) {
+      return (
+        title: '${item.name} overdue',
+        body: '$bikeName · ${fmt.format(-km)} km past due',
+      );
+    }
 
     final body = km == null
         ? '$bikeName · due around $date'
-        : '$bikeName · about ${NumberFormat.decimalPattern().format(km)} km '
+        : '$bikeName · about ${fmt.format(km)} km '
               'to go, around $date at your current pace';
 
     return (title: '${item.name} due soon', body: body);
@@ -173,7 +181,7 @@ abstract final class Notifications {
         // A fill-up is the only moment we know the real odometer.
         if (warnNow) {
           final km = Maintenance.kmRemaining(item, currentOdo);
-          if (km != null && km > 0 && km <= _warnKm) {
+          if (km != null && km <= _warnKm) {
             final message = messageFor(item, due, bike.nickname, currentOdo);
             await _plugin.show(
               id: item.id + 10000,
