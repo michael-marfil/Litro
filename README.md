@@ -23,8 +23,10 @@ get in Legazpi traffic, and I wanted to know the real one.
 - **Any two of {litres, price/L, amount paid}** computes the third while you type
 - **Tracks maintenance** — oil, chain, CVT, anything on a schedule, by distance or by time
 - **Predicts the due date** from your actual km/day, and reminds you a week ahead
+- **Keeps a service history** with what each one cost
+- **Shows the true cost per kilometre** — fuel plus servicing, not fuel alone
 - **Compares stations** by the price you actually paid, cheapest highlighted
-- **Charts** efficiency and gas-price trends over time
+- **Charts** efficiency, gas-price and monthly spending trends
 - **Starts from a preset** — nine common PH models with tank size and service intervals
 - **Backs up and restores** your whole history as a file you own
 - **Handles multiple bikes**, with every number scoped to the one you're riding
@@ -92,6 +94,23 @@ The fix is two guards: at least three fill-ups, and at least fourteen days of hi
 Anything less returns `null`, and the UI shows no estimate rather than a wrong one. Tests
 prove the maths; only real data reveals the assumption the maths was built on.
 
+### The service log is the record; the item's dates are a cache
+
+A maintenance item used to store only `lastOdo` and `lastDate`, overwritten on every 
+service. Six oil changes left one date, and nothing recorded what any of them cost.
+
+The textbook fix is to normalise: delete those columns and derive "last serviced" from 
+the log. I didn't. That change would have altered the signature of every function in
+`lib/domain/maintenance.dart`, every call site across three screens and the notification
+scheduler, and every test — to arrive at behaviour identical to what already worked.
+
+So `service_logs` became the record, and the item's two columns stayed as a cache of its
+newest row. That is deliberate denormalisation, and it is only safe because of one rule:
+**exactly one code path writes both, inside one transaction.** Logging a service inserts
+the row and updates the cache together. Deleting one removes the row and recomputes the
+cache from whatever survives — or clears it, if that was the last service. Two writers
+would let the two drift apart. One cannot.
+
 ### Nothing invented
 
 A number that can't be computed renders as `—`, never `0.0`. One fill-up genuinely cannot
@@ -106,7 +125,7 @@ Comparison lines hide entirely when the bike has no manufacturer figure to compa
 |---|---|
 | **Flutter 3.47 / Dart 3.13** | |
 | **[Drift](https://drift.simonbinder.eu/)** | typed SQLite, reactive queries, schema migrations |
-| **[fl_chart](https://pub.dev/packages/fl_chart)** | efficiency and price trends |
+| **[fl_chart](https://pub.dev/packages/fl_chart)** | efficiency, price and spending trends |
 | **[intl](https://pub.dev/packages/intl)** | `en_PH` peso and date formatting |
 | **[flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications)** | scheduled reminders that survive a reboot |
 | **[share_plus](https://pub.dev/packages/share_plus) / [file_picker](https://pub.dev/packages/file_picker)** | backup out, restore in |
@@ -152,3 +171,4 @@ test/          domain and database tests
 - [ ] GPS-tagged stations on a map, cheapest highlighted
 - [ ] Tapping a reminder opens that maintenance item, not just the app
 - [ ] Optional cloud backup, so a lost phone isn't a lost history
+- [ ] Editing a logged service, not just adding and deleting one
