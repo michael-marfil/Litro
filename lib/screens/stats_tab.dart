@@ -1,9 +1,13 @@
-import 'package:drift/drift.dart' show OrderingTerm;
+import 'dart:math';
+
+import 'package:drift/drift.dart' show OrderingTerm, innerJoin;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../data/database.dart';
 import '../domain/fuel_stats.dart';
+import '../domain/spending.dart';
 
 class StatsTab extends StatelessWidget {
   const StatsTab({super.key, required this.db, required this.bike});
@@ -54,6 +58,8 @@ class StatsTab extends StatelessWidget {
               spots: price,
               emptyHint: 'Log a couple of fill-ups to see price history.',
             ),
+            const SizedBox(height: 12),
+            _SpendingCard(db: db, bikeId: bike.id, entries: entries),
           ],
         );
       },
@@ -199,6 +205,220 @@ class _ChartCard extends StatelessWidget {
           belowBarData: BarAreaData(
             show: true,
             color: line.withValues(alpha: 0.10)
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Fuel is the brand cyan; servicing is a gold that is deliberately NOT the
+/// coral used for alerts - a normal month must not look like a warning.
+const _fuelColor = Color(0xFF37D7E6);
+const _serviceColor = Color(0xFFB8862E);
+
+class _SpendingCard extends StatelessWidget {
+  const _SpendingCard({
+    required this.db,
+    required this.bikeId,
+    required this.entries,
+  });
+
+  final AppDatabase db;
+  final int bikeId;
+  final List<FuelEntry> entries;
+
+  Stream<List<ServiceLog>> _serviceLogs() {
+    final q = 
+        db.select(db.serviceLogs).join([
+          innerJoin(
+            db.maintenanceItems,
+            db.maintenanceItems.id.equalsExp(db.serviceLogs.itemId),
+          ),
+        ])..where(db.maintenanceItems.bikeId.equals(bikeId));
+
+    return q.map((row) => row.readTable(db.serviceLogs)).watch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final peso = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
+
+    return StreamBuilder<List<ServiceLog>>(
+      stream: _serviceLogs(),
+      builder: (context, snapshot) {
+        final logs = snapshot.data ?? const <ServiceLog>[];
+        final months = Spending.byMonth(entries, logs, DateTime.now());
+
+        final maxY = months.fold<double>(
+          0,
+          (best, m) => max(best, m.fuel + m.service),
+        );
+        final fuelTotal = months.fold<double>(0, (s, m) => s + m.fuel);
+        final serviceTotal = months.fold<double>(0, (s, m) => s + m.service);
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'SPENDING · LAST 6 MONTHS',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _Key(color: _fuelColor, label: 'Fuel ${peso.format(fuelTotal)}'),
+                  const SizedBox(width: 16),
+                  _Key(
+                    color: _serviceColor,
+                    label: 'Servicing ${peso.format(serviceTotal)}',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 180,
+                child: maxY == 0
+                    ? Center(
+                        child: Text(
+                          'Log a fill-up to see where the money goes.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    )
+                    : BarChart(_data(theme, months, maxY, peso)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  BarChartData _data(
+    ThemeData theme,
+    List<MonthSpend> months,
+    double maxY,
+    NumberFormat peso,
+  ) {
+    final grid = theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.15);
+
+    return BarChartData(
+      alignment: BarChartAlignment.spaceAround,
+      maxY: maxY * 1.15,
+      borderData: FlBorderData(show: false),
+      gridData: FlGridData(
+        drawVerticalLine: false,
+        getDrawingHorizontalLine: (_) => FlLine(color: grid, strokeWidth: 1),
+      ),
+      titlesData: FlTitlesData(
+        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 26,
+            getTitlesWidget: (value, meta) {
+              final m = months[value.toInt()].month;
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  DateFormat('MMM').format(m),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+      barTouchData: BarTouchData(
+        touchTooltipData: BarTouchTooltipData(
+          getTooltipColor: (_) => theme.colorScheme.surfaceContainerHighest,
+          getTooltipItem: (group, _, _, _) {
+            final m = months[group.x];
+            return BarTooltipItem(
+              '${DateFormat('MMMM').format(m.month)}\n'
+              'Fuel ${peso.format(m.fuel)}'
+              '${m.service == 0 ? '' : '\nServicing ${peso.format(m.service)}'}',
+              theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
+            );
+          },
+        ),
+      ),
+      barGroups: [
+        for (var i = 0; i < months.length; i++)
+          BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: months[i].fuel + months[i].service,
+                width: 18,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(4),
+                ),
+                rodStackItems: [
+                  BarChartRodStackItem(0, months[i].fuel, _fuelColor),
+                  BarChartRodStackItem(
+                    months[i].fuel,
+                    months[i].fuel + months[i].service,
+                    _serviceColor,
+                  ),
+                ],
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+/// A legend swatch. The label wears text colour, never the series colour -
+/// the square carries the identity.
+class _Key extends StatelessWidget {
+  const _Key({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
