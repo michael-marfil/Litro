@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show leftOuterJoin;
+import 'package:drift/drift.dart' show leftOuterJoin, Value, StringExpressionOperators;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -55,6 +55,64 @@ class StationsTab extends StatelessWidget {
       );
       return out;
     });
+  }
+
+  Future<void> _rename(BuildContext context, Station s) async {
+    final theme = Theme.of(context);
+
+    var value = s.name;
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.colorScheme.surfaceContainer,
+        title: const Text('Rename station'),
+        content: TextFormField(
+          initialValue: s.name,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Station name'),
+          onChanged: (v) => value = v,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(value.trim()),
+            child: const Text('SAVE'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || name == s.name) return;
+
+    // Station names are unique, so a rename onto a existing name would fail.
+    // But that IS the fix for a typo - so fold this station into that one
+    // instead of refusing.
+    final existing = await (db.select(db.stations)
+      ..where((t) => t.name.lower().equals(name.toLowerCase())))
+    .getSingleOrNull();
+
+    final merging = existing != null && existing.id != s.id;
+
+    if (merging) {
+      await db.transaction(() async {
+        await (db.update(db.fuelEntries)
+            ..where((t) => t.stationId.equals(s.id)))
+          .write(FuelEntriesCompanion(stationId: Value(existing.id)));
+
+        await (db.delete(db.stations)..where((t) => t.id.equals(s.id))).go();
+      });
+    } else {
+      await (db.update(db.stations)..where((t) => t.id.equals(s.id)))
+          .write(StationsCompanion(name: Value(name)));
+    }
+
+    if (context.mounted) {
+      showAppAlert(context, merging ? 'Merged into $name' : 'Renamed to $name');
+    }
   }
 
   Future<void> _delete(BuildContext context, Station s) async {
@@ -143,7 +201,7 @@ class StationsTab extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 itemCount: rows.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, i) {
+                itemBuilder: (_, i) {
                   final r = rows[i];
                   final cheapest = i == 0 && rows.length > 1;
 
@@ -204,6 +262,11 @@ class StationsTab extends StatelessWidget {
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.onSurface,
                           ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          color: theme.colorScheme.onSurfaceVariant,
+                          onPressed: () => _rename(context, r.station),
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline),
