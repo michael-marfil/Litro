@@ -49,6 +49,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
   late final TextEditingController _odometer;
   late final TextEditingController _cost;
   
+  ServiceLog? _editing;
   DateTime _date = DateTime.now();
   bool _saving = false;
   int? _previousOdo;
@@ -106,6 +107,25 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  /// Loads an existing service into the form. Saving then updates that row
+  /// instead of adding a new one.
+  void _startEdit(ServiceLog log) {
+    setState(() {
+      _editing = log;
+      _date = log.date;
+      _odometer.text = log.odometer.toString();
+      _cost.text = log.cost?.toStringAsFixed(0) ?? '';
+    });
+  }
+
+  /// Back to logging a new service. Call inside setState.
+  void _clearEdit() {
+    _editing = null;
+    _date = DateTime.now();
+    _odometer.text = widget.currentOdometer?.toString() ?? '';
+    _cost.text = '';
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -113,30 +133,36 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     final odo = int.parse(_odometer.text.trim());
     final costText = _cost.text.trim();
     final cost = costText.isEmpty ? null : double.parse(costText);
+    final editing = _editing;
 
     // One writer, one transaction. The log is the record; the item's
     // lastOdo/lastDate are a cache of its newest row. Because both writes
     // live here and nowhere else, they can't drift apart.
     await widget.db.transaction(() async {
-      await widget.db
-        .into(widget.db.serviceLogs)
-        .insert(
-          ServiceLogsCompanion.insert(
-            itemId: widget.item.id,
-            odometer: odo,
-            date: _date,
-            cost: Value(cost),
-          ),
-        );
+      if (editing == null) {
+        await widget.db 
+            .into(widget.db.serviceLogs)
+            .insert(
+              ServiceLogsCompanion.insert(
+                itemId: widget.item.id,
+                odometer: odo,
+                date: _date,
+                cost: Value(cost),
+              ),
+            );
+      } else {
+        await (widget.db.update(widget.db.serviceLogs)
+              ..where((t) => t.id.equals(editing.id)))
+            .write(
+              ServiceLogsCompanion(
+                odometer: Value(odo),
+                date: Value(_date),
+                cost: Value(cost),
+              ),
+            );
+      }
 
-      await (widget.db.update(widget.db.maintenanceItems)
-            ..where((t) => t.id.equals(widget.item.id)))
-          .write(
-            MaintenanceItemsCompanion(
-              lastOdo: Value(odo),
-              lastDate: Value(_date),
-            ),
-          );
+      await _syncCache();
     });
 
     await Notifications.sync(widget.db);
@@ -156,6 +182,30 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     return 'No interval set for this item yet.';
   }
 
+  /// Rewrites the item's cached lastOdo/lastDate from the newest surviving
+  /// service log - or clears them if there is none left.
+  /// 
+  /// The single place the cache is derived. Every writer calls this from 
+  /// inside its own transcation, so there is exactly one definition of what
+  /// "last serviced" means.
+  Future<void> _syncCache() async {
+    final newest =
+        await (widget.db.select(widget.db.serviceLogs)
+              ..where((t) => t.itemId.equals(widget.item.id))
+              ..orderBy([(t) => OrderingTerm.desc(t.date)])
+              ..limit(1))
+            .getSingleOrNull();
+
+    await (widget.db.update(widget.db.maintenanceItems)
+          ..where((t) => t.id.equals(widget.item.id)))
+        .write(
+          MaintenanceItemsCompanion(
+            lastOdo: Value(newest?.odometer),
+            lastDate: Value(newest?.date),
+          ),
+        );
+  }
+
   /// Removes one service and repairs the cache behind it.
   Future<void> _deleteLog(ServiceLog log) async {
     await widget.db.transaction(() async {
@@ -163,23 +213,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
             ..where((t) => t.id.equals(log.id)))
           .go();
 
-      // The cache mirrors the newest surviving log - or nothing at all, if
-      // that was the last one. This is the single writer keeping its promise.
-      final newest =
-          await (widget.db.select(widget.db.serviceLogs)
-                ..where((t) => t.itemId.equals(widget.item.id))
-                ..orderBy([(t) => OrderingTerm.desc(t.date)])
-                ..limit(1))
-              .getSingleOrNull();
-
-      await (widget.db.update(widget.db.maintenanceItems)
-            ..where((t) => t.id.equals(widget.item.id)))
-          .write(
-            MaintenanceItemsCompanion(
-              lastOdo: Value(newest?.odometer),
-              lastDate: Value(newest?.date),
-            ),
-          );
+      await _syncCache();
     });
 
     await Notifications.sync(widget.db);
@@ -243,24 +277,29 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
             ),
             const SizedBox(height: 6),
             for (final log in logs)
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${date.format(log.date)} · ${km.format(log.odometer)} km'
-                      '${log.cost == null ? '' : ' · ₱${log.cost!.toStringAsFixed(0)}'}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+              InkWell(
+                onTap: () => _startEdit(log),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${date.format(log.date)} · ${km.format(log.odometer)} km'
+                        '${log.cost == null ? '' : ' · ₱${log.cost!.toStringAsFixed(0)}'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: _editing?.id == log.id
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurfaceVariant
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    visualDensity: VisualDensity.compact,
-                    color: theme.colorScheme.onSurfaceVariant,
-                    onPressed: () => _deleteLog(log),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      visualDensity: VisualDensity.compact,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      onPressed: () => _deleteLog(log),
+                    ),
+                  ],
+                ),
               ),
           ],
         );
@@ -298,7 +337,12 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            Text('Log ${widget.item.name}', style: theme.textTheme.titleLarge),
+            Text(
+              _editing == null
+                  ? 'Log ${widget.item.name}'
+                  : 'Edit ${widget.item.name}',
+              style: theme.textTheme.titleLarge,
+            ),
             const SizedBox(height: 6),
             Text(
               _intervalLine,
@@ -336,8 +380,19 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _saving ? null : _save,
-              child: Text(_saving ? 'SAVING...' : 'LOG IT'),
+              child: Text(
+                _saving
+                  ? 'SAVING...'
+                  : _editing == null
+                  ? 'LOG IT'
+                  : 'UPDATE',
+              ),
             ),
+            if (_editing != null)
+              TextButton(
+                onPressed: () => setState(_clearEdit),
+                child: const Text('CANCEL EDIT'),
+              )
           ],
         ),
       ),
