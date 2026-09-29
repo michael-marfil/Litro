@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'data/database.dart';
 import 'data/notifications.dart';
-import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
+// import 'screens/home_screen.dart';
 // import 'screens/dashboard_screen.dart';
 
 void main() async {
@@ -25,7 +26,8 @@ class LitroApp extends StatelessWidget {
       title: 'Litro',
       theme: AppTheme.dark,
       debugShowCheckedModeBanner: false,
-      home: HomeScreen(db:db),
+      home: SplashScreen(db: db),
+      // home: HomeScreen(db:db),
       // home: IntroScreen(db: db),
       // home: const DashboardScreen(),
     );
