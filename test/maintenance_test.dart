@@ -279,4 +279,58 @@ void main() {
       expect(Maintenance.allInCostPerKm([], []), isNull);
     });
   });
+
+  group('summarise', () {
+    test('is null with no history', () {
+      expect(Maintenance.summarise([]), isNull);
+    });
+
+    test('counts services and adds up what they cost', () {
+      final s = Maintenance.summarise([
+        service(30000, DateTime(2026, 1, 5), cost: 450),
+        service(32000, DateTime(2026, 4, 5), cost: 500),
+        service(34000, DateTime(2026, 7, 5)),
+      ])!;
+
+      expect(s.count, 3);
+      expect(s.cost, 950);
+    });
+
+    test('averages over the gaps between services, not the services', () {
+      // 30000 -> 34000 is 4000 km across TWO intervals, not three.
+      final s = Maintenance.summarise([
+        service(30000, DateTime(2026, 1, 5)),
+        service(32000, DateTime(2026, 4, 5)),
+        service(34000, DateTime(2026, 7, 5)),
+      ])!;
+
+      expect(s.averageKm, 2000);
+    });
+
+    test('has no average from a single service', () {
+      final s = Maintenance.summarise([service(30000, DateTime(2026, 1, 5))])!;
+
+      expect(s.count, 1);
+      expect(s.averageKm, isNull);
+    });
+
+    test('has no average when the odometer never moved', () {
+      final s = Maintenance.summarise([
+        service(30000, DateTime(2026, 1, 5)),
+        service(30000, DateTime(2026, 4, 5)),
+      ])!;
+
+      expect(s.averageKm, isNull);
+    });
+
+    test('does not care what order the logs arrive in', () {
+      final s = Maintenance.summarise([
+        service(34000, DateTime(2026, 7, 5)),
+        service(30000, DateTime(2026, 1, 5)),
+        service(32000, DateTime(2026, 4, 5)),
+      ])!;
+
+      expect(s.averageKm, 2000);
+    });
+  });
 }

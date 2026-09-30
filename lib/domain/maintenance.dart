@@ -142,4 +142,24 @@ abstract final class Maintenance {
     final fuel = entries.fold<double>(0, (sum, e) => sum + e.amountPaid);
     return (fuel + serviceSpend(logs)) / distance;
   }
+
+  /// What a maintenance item's history adds up to: how many times, what it 
+  /// cost, and the distance actually achieved between services.
+  static ({int count, double cost, int? averageKm})? summarise(
+    List<ServiceLog> logs,
+  ) {
+    if (logs.isEmpty) return null;
+
+    int? averageKm;
+
+    // n services have n-1 gaps between them, so two is the minimum that
+    // says anything about interval.
+    if (logs.length >= 2) {
+      final odometers = logs.map((l) => l.odometer).toList()..sort();
+      final span = odometers.last - odometers.first;
+      if (span > 0) averageKm = (span / (logs.length - 1)).round();
+    }
+
+    return (count: logs.length, cost: serviceSpend(logs), averageKm: averageKm);
+  }
 }

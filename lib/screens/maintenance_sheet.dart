@@ -75,7 +75,9 @@ class MaintenanceSheet extends StatelessWidget {
   String _subtitle(MaintenanceItem i) {
     final km = i.intervalKm;
     final months = i.intervalMonths;
-    if (km != null && months != null) return 'Every $km km or $months months';
+    if (km != null && months != null) {
+      return 'Every ${NumberFormat.decimalPattern().format(km)} km or $months months';
+    }
     if (km != null) return 'Every ${NumberFormat.decimalPattern().format(km)} km';
     if (months != null) return 'Every $months months';
     return 'No interval set';
@@ -154,7 +156,11 @@ class MaintenanceSheet extends StatelessWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(i.name),
-                      subtitle: Text(_subtitle(i)),
+                      subtitle: _ItemSubtitle(
+                        db: db,
+                        item: i,
+                        interval: _subtitle(i),
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -392,6 +398,69 @@ class _EditMaintenanceSheetState extends State<EditMaintenanceSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The interval line, plus what the history adds up to once there is one.
+/// 
+/// Its own widget so it can hold its own stream - the summary has to
+/// recompute when a service is logged, edited or deleted.
+class _ItemSubtitle extends StatelessWidget {
+  const _ItemSubtitle({
+    required this.db,
+    required this.item,
+    required this.interval,
+  });
+
+  final AppDatabase db;
+  final MaintenanceItem item;
+  final String interval;
+
+  Stream<List<ServiceLog>> _logs() =>
+      (db.select(db.serviceLogs)
+            ..where((t) => t.itemId.equals(item.id)))
+          .watch();
+
+  String _summaryLine(({int count, double cost, int? averageKm}) s) {
+    final peso = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
+    final km = NumberFormat.decimalPattern();
+
+    return [
+      s.count == 1 ? 'once' : '${s.count} times',
+      if (s.cost > 0) peso.format(s.cost),
+      if (s.averageKm != null) 'every ~${km.format(s.averageKm)} km',
+    ].join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return StreamBuilder<List<ServiceLog>>(
+      stream: _logs(),
+      builder: (context, snapshot) {
+        final summary = Maintenance.summarise(snapshot.data ?? const []);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(interval),
+            if (summary != null)
+              Text(
+                _summaryLine(summary),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
