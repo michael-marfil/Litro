@@ -19,14 +19,43 @@ class _SplashScreenState extends State<SplashScreen>
     late final AnimationController _controller;
     bool _opened = false;
 
+    /// Ride in, hold, ride out - three stages on one controller.
+    late final Animation<double> _x = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: -2.5,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 35,
+      ),
+      TweenSequenceItem(tween: ConstantTween(0.0), weight: 25),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.0,
+          end: 2.5,
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 40,
+      ),
+    ]).animate(_controller);
+
+    /// Fades in during the hold.
+    late final Animation<double> _titleFade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.38, 0.55, curve: Curves.easeIn),
+    );
+
     @override
     void initState() {
       super.initState();
-      _controller = 
+      _controller =
         AnimationController(
           vsync: this,
-          duration: const Duration(milliseconds: 1400),
-        )..forward().whenComplete(_open);
+          duration: const Duration(milliseconds: 2600),
+        )..forward().whenComplete(() async {
+          // A beat after it leaves, before the app appears.
+          await Future.delayed(const Duration(milliseconds: 250));
+          _open();
+        });
     }
 
     void _open() {
@@ -34,7 +63,12 @@ class _SplashScreenState extends State<SplashScreen>
       _opened = true;
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomeScreen(db: widget.db)),
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 450),
+          pageBuilder: (_, _, _) => HomeScreen(db: widget.db),
+          transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+        ),
       );
     }
 
@@ -52,15 +86,38 @@ class _SplashScreenState extends State<SplashScreen>
         onTap: _open,
         child: Scaffold(
           backgroundColor: theme.colorScheme.surface,
-          body: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              // Constant speed, dead level - a scooter crossing the frame.
-              final x = -2.5 + 5.0 * _controller.value;
-
-              return Align(alignment: Alignment(x, 0.1), child: child);
-            },
-            child: Image.asset('assets/mascot/riding.png', height: 160),
+          body: Stack(
+            children: [
+              AnimatedBuilder(
+                animation: _x,
+                builder: (context, child) =>
+                    Align(alignment: Alignment(_x.value, 0.0), child: child),
+                child: Image.asset('assets/mascot/riding.png', height: 160),
+              ),
+              Align(
+                alignment: const Alignment(0, 0.3),
+                child: FadeTransition(
+                  opacity: _titleFade,
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Lit',
+                          style: TextStyle(color: theme.colorScheme.onSurface),
+                        ),
+                        TextSpan(
+                          text: 'ro',
+                          style: TextStyle(color: theme.colorScheme.primary),
+                        ),
+                      ],
+                    ),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       );
