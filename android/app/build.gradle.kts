@@ -15,6 +15,10 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+base {
+    archivesName = "Litro"
+}
+
 android {
     namespace = "com.michaelmarfil.litro"
     compileSdk = flutter.compileSdkVersion
