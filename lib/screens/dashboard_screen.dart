@@ -34,7 +34,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final _chipKey = GlobalKey();
     final _maintKey = GlobalKey();
     final _statsKey = GlobalKey();
-    bool _guideDismissed = false;
+    // Starts hidden: reading the flag is async, and a guide that flashes on
+    // every launch before disappearing is worse than one that arrives late.
+    bool _guideDismissed = true;
+
+    @override
+    void initState() {
+      super.initState();
+      Guide.seen().then((seen) {
+        if (mounted && !seen) setState(() => _guideDismissed = false);
+      });
+    }
 
     @override
     Widget build(BuildContext context) {
@@ -74,8 +84,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       return const SizedBox.shrink();
                     }
                     return CoachOverlay(
-                      onDone: () => 
-                        setState(() => _guideDismissed = true),
+                      onDone: () {
+                        Guide.markSeen();
+                        setState(() => _guideDismissed = true);
+                      },
                       steps: [
                         CoachStep(
                           targetKey: _addKey,
