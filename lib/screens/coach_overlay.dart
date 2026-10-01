@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CoachStep {
   const CoachStep({
@@ -177,4 +178,22 @@ class _SpotlightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SpotlightPainter old) => old.hole != hole;
+}
+
+
+/// Whether the walkthrough has been seen. The one piece of UI state Litro
+/// stores - "has this user been shown the guide" isn't derivable from the 
+/// database the way "has this user any bikes" is.
+abstract final class Guide {
+  static const _key = 'guide_seen';
+
+  static Future<bool> seen() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_key) ?? false;
+  }
+
+  static Future<void> markSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, true);
+  }
 }
