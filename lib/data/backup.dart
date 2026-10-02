@@ -7,7 +7,7 @@ import 'database.dart';
 
 /// Bumped when the *shape of the backup file* changes - separate from the
 /// database's schemaVersion, which describes the tables.
-const _formatVersion = 1;
+const _formatVersion = 2;
 
 abstract final class Backup {
   /// The entire database as a JSON string.
@@ -16,6 +16,7 @@ abstract final class Backup {
     final stations = await db.select(db.stations).get();
     final entries = await db.select(db.fuelEntries).get();
     final maintenance = await db.select(db.maintenanceItems).get();
+    final serviceLogs = await db.select(db.serviceLogs).get();
 
     final payload = <String, Object?>{
       'app': 'litro',
@@ -26,6 +27,7 @@ abstract final class Backup {
       'stations': stations.map((s) => s.toJson()).toList(),
       'fuelEntries': entries.map((e) => e.toJson()).toList(),
       'maintenanceItems': maintenance.map((m) => m.toJson()).toList(),
+      'serviceLogs': serviceLogs.map((l) => l.toJson()).toList(),
     };
 
     return const JsonEncoder.withIndent(' ').convert(payload);
@@ -68,6 +70,11 @@ abstract final class Backup {
         decoded,
         'maintenanceItems',
       ).map(MaintenanceItem.fromJson).toList(),
+      // Format 1 predats service logs. Those files are still valid - they
+      // simply have no history to restore.
+      serviceLogs: fileFormat < 2
+          ? const []
+          : _section(decoded, 'serviceLogs').map(ServiceLog.fromJson).toList(),
     );
   }
 
@@ -75,6 +82,7 @@ abstract final class Backup {
   static Future<void> apply(AppDatabase db, BackupPayload payload) {
     return db.transaction(() async {
       // Children before parents — foreign keys are enforced.
+      await db.delete(db.serviceLogs).go();
       await db.delete(db.fuelEntries).go();
       await db.delete(db.maintenanceItems).go();
       await db.delete(db.bikes).go();
@@ -85,6 +93,7 @@ abstract final class Backup {
         b.insertAll(db.bikes, payload.bikes);
         b.insertAll(db.fuelEntries, payload.entries);
         b.insertAll(db.maintenanceItems, payload.maintenance);
+        b.insertAll(db.serviceLogs, payload.serviceLogs);
       });
     });
   }
@@ -109,10 +118,12 @@ class BackupPayload {
     required this.stations,
     required this.entries,
     required this.maintenance,
+    required this.serviceLogs,
   });
 
   final List<Bike> bikes;
   final List<Station> stations;
   final List<FuelEntry> entries;
   final List<MaintenanceItem> maintenance;
+  final List<ServiceLog> serviceLogs;
 }
