@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'database.dart';
 
@@ -108,6 +109,43 @@ abstract final class Backup {
     final value = map[key];
     if (value is! List) throw FormatException('The "$key" section is damaged.');
     return value.cast<Map<String, dynamic>>();
+  }
+
+  static const _lastBackupKey = 'last_backup_at';
+  static const _snoozeKey = 'backup_snoozed_until';
+
+  /// Whether to nudge. A null [last] means never backed up at all, which is
+  /// the case worth nagging about hardest - there is no other copy.
+  static bool isOverdue(DateTime? last, DateTime now, {int afterDays = 30}) {
+    if (last == null) return true;
+    return now.difference(last).inDays >= afterDays;
+  }
+
+  /// Call after a backup actually succedds - not when one is started.
+  static Future<void> markBackedUp() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  static Future<DateTime?> lastBackupAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ms =  prefs.getInt(_lastBackupKey);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  /// Dismissing the nudge quitens it for a week rather than forever - 
+  /// "not now" is almos never "never".
+  static Future<void> snooze() async {
+    final prefs = await SharedPreferences.getInstance();
+    final until = DateTime.now().add(const Duration(days: 7));
+    await prefs.setInt(_snoozeKey, until.millisecondsSinceEpoch);
+  }
+
+  static Future<bool> isSnoozed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final until = prefs.getInt(_snoozeKey);
+    if (until == null) return false;
+    return DateTime.now().millisecondsSinceEpoch < until;
   }
 }
 

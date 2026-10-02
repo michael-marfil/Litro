@@ -42,12 +42,18 @@ class _SettingsSheetState extends State<SettingsSheet> {
     try {
       await runWithLoader(context, () async {
         final file = await Backup.writeFile(widget.db);
-        await SharePlus.instance.share(
+        final result = await SharePlus.instance.share(
           ShareParams(
             files: [XFile(file.path, mimeType: 'application/json')],
             subject: 'Litro backup',
           ),
         );
+
+        // Only count it ifi the file actually went somewhere. Opening the
+        // share sheet and backing out is not a backup.
+        if (result.status == ShareResultStatus.success) {
+          await Backup.markBackedUp();
+        }
       });
     } catch (e) {
       if (mounted) showAppAlert(context, 'Backup failed', kind: AlertKind.error);

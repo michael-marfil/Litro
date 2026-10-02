@@ -47,15 +47,15 @@ class _SplashScreenState extends State<SplashScreen>
     @override
     void initState() {
       super.initState();
-      _controller =
-        AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 2600),
-        )..forward().whenComplete(() async {
-          // A beat after it leaves, before the app appears.
-          await Future.delayed(const Duration(milliseconds: 250));
-          _open();
-        });
+      _controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 2600),
+      )..forward();
+
+      // Navigation runs on wall-clock time, not on the animation finishing.
+      // Tickers pause when the app isn't visible - if that happened mid-ride,
+      // whenComplete would never fire and the splash would hang forever.
+      Future.delayed(const Duration(milliseconds: 2850), _open);
     }
 
     void _open() {

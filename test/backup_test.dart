@@ -128,4 +128,24 @@ void main() {
       expect(logs.single.odometer, 35655);
     });
   });
+
+    group('isOverdue', () {
+    final now = DateTime(2026, 10, 2);
+
+    test('is true when there has never been a backup', () {
+      expect(Backup.isOverdue(null, now), isTrue);
+    });
+
+    test('is true at exactly the threshold', () {
+      expect(Backup.isOverdue(DateTime(2026, 9, 2), now), isTrue);
+    });
+
+    test('is false a day short of it', () {
+      expect(Backup.isOverdue(DateTime(2026, 9, 3), now), isFalse);
+    });
+
+    test('is false right after a backup', () {
+      expect(Backup.isOverdue(now, now), isFalse);
+    });
+  });
 }

@@ -17,6 +17,7 @@ import 'maintenance_sheet.dart';
 import 'coach_overlay.dart';
 import 'settings_sheet.dart';
 import '../widgets/app_feedback.dart';
+import '../data/backup.dart';
 
 class DashboardScreen extends StatefulWidget {
     const DashboardScreen({super.key, required this.db, required this.bike});
@@ -153,6 +154,7 @@ class _DashTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                         _Header(db: db, bike: bike, chipKey: chipKey),
+                        _BackupNudge(db: db),
                         const SizedBox(height: 16),
                         _HeroCard(db: db, bike: bike),
                         const SizedBox(height: 12),
@@ -1249,6 +1251,104 @@ class _RecentFills extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Nudges about backing up when it has been a while - or never.
+/// 
+/// Litro keeps everything on the phone by design, so a lost phone is a lost 
+/// history unless someone exports. Nothing else in the app will say so.
+class _BackupNudge extends StatefulWidget {
+  const _BackupNudge({required this.db});
+
+  final AppDatabase db;
+
+  @override
+  State<_BackupNudge> createState() => _BackupNudgeState();
+}
+
+class _BackupNudgeState extends State<_BackupNudge> {
+  bool _show = false;
+  DateTime? _last;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    if (await Backup.isSnoozed()) return;
+
+    final last = await Backup.lastBackupAt();
+    if (!Backup.isOverdue(last, DateTime.now())) return;
+
+    // Nothing to lose yet - an empty app has no reason to nag.
+    final entries = await widget.db.select(widget.db.fuelEntries).get();
+    if (entries.isEmpty) return;
+
+    if (!mounted) return;
+    setState(() {
+      _last = last;
+      _show = true;
+    });
+  }
+
+  Future<void> _dismiss() async {
+    await Backup.snooze();
+    if (mounted) setState(() => _show = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_show) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final last = _last;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  last == null
+                      ? 'Your history only exists on this phone.'
+                      : 'Last backed up ${DateFormat('d MMM').format(last)}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                GestureDetector(
+                  onTap: () => showSettingsSheet(context, widget.db),
+                  child: Text(
+                    'Back it up →',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            color: theme.colorScheme.onSurfaceVariant,
+            onPressed: _dismiss,
+          ),
+        ],
+      ),
     );
   }
 }
