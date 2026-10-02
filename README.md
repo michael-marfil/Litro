@@ -28,7 +28,7 @@ get in Legazpi traffic, and I wanted to know the real one.
 - **Compares stations** by the price you actually paid, cheapest highlighted
 - **Charts** efficiency, gas-price and monthly spending trends
 - **Starts from a preset** — nine common PH models with tank size and service intervals
-- **Backs up and restores** your whole history as a file you own
+- **Tells you when you last backed up** — the only copy is on your phone, and nothing else will say so
 - **Handles multiple bikes**, with every number scoped to the one you're riding
 - **Works with no signal.** No account, no server, nothing to sign up for
 
@@ -82,7 +82,27 @@ Import is the dangerous half of backup — it replaces everything. So `parse` re
 entire file, checks the envelope, and refuses anything from a newer format version
 *before* a single row is touched. Only then does `apply` run, inside one transaction.
 
-This was not theoretical. An early version looked for a `mantenanceItem` key that the exporter writes as `maintenanceItems` — one missing letter. It silently wiped every maintenance item and reported success. The typo was the bug; the real fix was making a missing key thrown instead of quitely returning an empty list.
+This is not theoretical, and it has happened twice.
+
+The first time, an early version looked for a `maintenanceItem` key that the exporter
+writes as `maintenanceItems` — one missing letter. It silently wiped every maintenance
+item and reported success. The typo was the bug; the real fix was making a missing key
+throw instead of quietly returning an empty list.
+
+The second was worse, because nothing was misspelled. Service logs were added to the
+schema months after the backup code was written, and never wired into it. `apply` deletes
+maintenance items, and service logs cascade off them — so restoring a backup destroyed
+every service and every cost recorded. Silently. Reporting success.
+
+The fix was three things: carry them in the file, delete them *explicitly* rather than
+leaning on the cascade that hid the gap, and write the test that would have caught it —
+insert a service, export, parse, restore, assert it came back. That test fails on the
+previous commit in three separate ways.
+
+It is also the first time `formatVersion` earned its keep. A format-1 backup legitimately
+has no service-log section, and a missing section is normally damage — the version number
+is what tells those two apart, so old backups still restore and new ones refuse to load
+into an older build.
 
 ### Unit tests didn't catch the prediction bug — real data did
 
@@ -171,4 +191,3 @@ test/          domain and database tests
 - [ ] GPS-tagged stations on a map, cheapest highlighted
 - [ ] Tapping a reminder opens that maintenance item, not just the app
 - [ ] Optional cloud backup, so a lost phone isn't a lost history
-- [ ] Editing a logged service, not just adding and deleting one
