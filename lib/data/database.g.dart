@@ -2835,8 +2835,10 @@ class $$BikesTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$BikesTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$BikesTable, Bike>(table),
+                  $$BikesTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
@@ -3085,7 +3087,7 @@ class $$StationsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$StationsTable, Station>(table),
                   $$StationsTableReferences(db, table, e),
                 ),
               )
@@ -3558,7 +3560,7 @@ class $$FuelEntriesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$FuelEntriesTable, FuelEntry>(table),
                   $$FuelEntriesTableReferences(db, table, e),
                 ),
               )
@@ -3995,7 +3997,7 @@ class $$MaintenanceItemsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$MaintenanceItemsTable, MaintenanceItem>(table),
                   $$MaintenanceItemsTableReferences(db, table, e),
                 ),
               )
@@ -4344,7 +4346,7 @@ class $$ServiceLogsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ServiceLogsTable, ServiceLog>(table),
                   $$ServiceLogsTableReferences(db, table, e),
                 ),
               )
