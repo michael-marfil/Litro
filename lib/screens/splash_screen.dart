@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen>
     late final Animation<double> _x = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween(
-          begin: -2.5,
+          begin: -3.5,
           end: 0.0,
         ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 35,
@@ -32,7 +32,7 @@ class _SplashScreenState extends State<SplashScreen>
       TweenSequenceItem(
         tween: Tween(
           begin: 0.0,
-          end: 2.5,
+          end: 3.5,
         ).chain(CurveTween(curve: Curves.easeInCubic)),
         weight: 40,
       ),

@@ -142,7 +142,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       switch (target) {
         case _Money.liters:
           if (amount != null && price != null && price > 0) {
-            _liters.text = (amount / price).toStringAsFixed(2);
+            _liters.text = (amount / price).toStringAsFixed(3);
           }
         case _Money.amount:
           if (liters != null && price != null) {
@@ -192,7 +192,15 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
     Future<void> _save() async {
       if (!_formKey.currentState!.validate()) return;
-      final liters = double.parse(_liters.text.trim());
+      // The text field holds a rounded string for the human to read. When
+      // litres is the computed one, save the real quotient instead: at PH
+      // pump prices 0.01 L is nearly a peso, which is enough to make two
+      // different prices come out identical
+      final price = double.parse(_price.text.trim());
+      final amount = double.parse(_amount.text.trim());
+      final liters = _derived == _Money.liters
+          ? amount / price
+          : double.parse(_liters.text.trim());
 
       final odo = int.parse(_odometer.text.trim());
 
@@ -391,6 +399,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                             _Field(
                               controller: _station,
                               label: 'Station (optional)',
+                              keyboardType: TextInputType.text,
                             ),
 
                             StreamBuilder<List<Station>>(
@@ -440,6 +449,7 @@ class _Field extends StatelessWidget {
     const _Field({
         required this.controller,
         required this.label,
+        this.keyboardType = const TextInputType.numberWithOptions(decimal: true),
         this.validator,
         this.onChanged,
         this.helperText,
@@ -450,6 +460,7 @@ class _Field extends StatelessWidget {
     final String? Function(String?)? validator;
     final void Function(String)? onChanged;
     final String? helperText;
+    final TextInputType keyboardType;
 
     @override
     Widget build(BuildContext context) {
@@ -457,7 +468,7 @@ class _Field extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: TextFormField(
                 controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: keyboardType,
                 decoration: InputDecoration(
                   labelText: label,
                   helperText: helperText,
