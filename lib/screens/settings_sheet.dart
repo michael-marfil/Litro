@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +6,8 @@ import '../data/backup.dart';
 import '../data/database.dart';
 import '../data/notifications.dart';
 import '../widgets/app_feedback.dart';
+
+import 'restore_flow.dart';
 
 Future<void> showSettingsSheet(BuildContext context, AppDatabase db) {
   return showModalBottomSheet<void>(
@@ -39,6 +38,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
   int _scheduled = 0;
 
   Future<void> _backup() async {
+    var saved = false;
+
     try {
       await runWithLoader(context, () async {
         final file = await Backup.writeFile(widget.db);
@@ -49,78 +50,26 @@ class _SettingsSheetState extends State<SettingsSheet> {
           ),
         );
 
-        // Only count it ifi the file actually went somewhere. Opening the
+        // Only count it if the file actually went somewhere. Opening the 
         // share sheet and backing out is not a backup.
         if (result.status == ShareResultStatus.success) {
           await Backup.markBackedUp();
+          saved = true;
         }
       });
     } catch (e) {
       if (mounted) showAppAlert(context, 'Backup failed', kind: AlertKind.error);
+      return;
     }
+
+    if (!mounted) return;
+    if (saved) showAppAlert(context, 'Backed up');
   }
 
   Future<void> _restore() async {
-    final picked = await FilePicker.pickFile(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (picked == null || !mounted) return;
+    final restored = await runRestoreFlow(context, widget.db);
+    if (!restored || !mounted) return;
 
-    final BackupPayload payload;
-    try {
-      payload = Backup.parse(utf8.decode(await picked.readAsBytes()));
-    } on FormatException catch (e) {
-      if (mounted) showAppAlert(context, e.message, kind: AlertKind.error);
-      return;
-    } catch (_) {
-      if (mounted) {
-        showAppAlert(
-          context,
-          "That file couldn't be read.",
-          kind: AlertKind.error,
-        );
-      }
-      return;
-    }
-
-    if (!mounted) return;
-    final theme = Theme.of(context);
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.colorScheme.surfaceContainer,
-        title: const Text('Replace everything?'),
-        content: Text(
-          'This backup has ${payload.bikes.length} bike(s), '
-          '${payload.entries.length} fill-up(s) and '
-          '${payload.maintenance.length} maintenance item(s).\n\n'
-          'Restoring deletes what is currently on this phone and puts the '
-          'backup in its place. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'REPLACE',
-              style: TextStyle(color: theme.colorScheme.error),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (ok != true) return;
-    if (!mounted) return;
-
-    await runWithLoader(context, () => Backup.apply(widget.db, payload));
-
-    if (!mounted) return;
     Navigator.of(context).pop();
     showAppAlert(context, 'Restored');
   }

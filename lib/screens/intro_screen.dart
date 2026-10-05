@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import 'add_bike_sheet.dart';
+import 'restore_flow.dart';
 
 class _Slide {
   const _Slide({required this.icon, required this.title, required this.body});
@@ -173,13 +174,20 @@ class _IntroScreenState extends State<IntroScreen> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
+              padding: const EdgeInsets.fromLTRB(32, 28, 32, 4),
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _next,
                   child: Text(_isLast ? 'ADD YOUR BIKE' : 'NEXT'),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextButton(
+                onPressed: () => runRestoreFlow(context, widget.db),
+                child: const Text('I already have a backup'),
               ),
             ),
           ],
