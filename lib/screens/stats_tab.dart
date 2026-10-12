@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show OrderingTerm, innerJoin;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:litro/widgets/adaptive_row.dart';
 
 import '../data/database.dart';
 import '../domain/fuel_stats.dart';
@@ -152,7 +153,7 @@ class _ChartCard extends StatelessWidget {
         leftTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 44,
+            reservedSize: 44 * bodyTextScale(context),
             interval: interval,
             minIncluded: false,
             maxIncluded: false,
@@ -278,10 +279,11 @@ class _SpendingCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 16,
+                runSpacing: 6,
                 children: [
                   _Key(color: _fuelColor, label: 'Fuel ${peso.format(fuelTotal)}'),
-                  const SizedBox(width: 16),
                   _Key(
                     color: _serviceColor,
                     label: 'Servicing ${peso.format(serviceTotal)}',
