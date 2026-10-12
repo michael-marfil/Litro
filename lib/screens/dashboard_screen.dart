@@ -18,6 +18,7 @@ import 'coach_overlay.dart';
 import 'settings_sheet.dart';
 import '../widgets/app_feedback.dart';
 import '../data/backup.dart';
+import '../widgets/adaptive_row.dart';
 
 class DashboardScreen extends StatefulWidget {
     const DashboardScreen({super.key, required this.db, required this.bike});
@@ -210,27 +211,32 @@ class _Header extends StatelessWidget {
                         ],
                     ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    KeyedSubtree(
-                      key: chipKey,
-                      child: GestureDetector(
-                        onTap: () async {
-                          final action = await showGarageSheet(context, db);
-                          if (action == 'add' && context.mounted) {
-                            await showAddBikeSheet(context, db);
-                          }
-                        },
-                        child: _BikeChip(name: bike.nickname),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: KeyedSubtree(
+                          key: chipKey,
+                          child: GestureDetector(
+                            onTap: () async {
+                              final action = await showGarageSheet(context, db);
+                              if (action == 'add' && context.mounted) {
+                                await showAddBikeSheet(context, db);
+                              }
+                            },
+                            child: _BikeChip(name: bike.nickname),
+                          ),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined),
-                      color: theme.colorScheme.onSurfaceVariant,
-                      onPressed: () => showSettingsSheet(context, db),
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        color: theme.colorScheme.onSurfaceVariant,
+                        onPressed: () => showSettingsSheet(context, db),
+                      ),
+                    ],
+                  ),
                 ),
             ],
         );
@@ -257,7 +263,14 @@ class _BikeChip extends StatelessWidget {
                 children: [
                     Icon(Icons.two_wheeler, size: 18, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
-                    Text(name, style: theme.textTheme.titleMedium),
+                    Flexible(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
                     const SizedBox(width: 4),
                     Icon(
                         Icons.arrow_drop_down,
@@ -460,30 +473,35 @@ class _DeltaPill extends StatelessWidget {
         final above = delta >= 0;
         final color = above ? theme.colorScheme.primary : theme.colorScheme.error;
 
-        return Container(
+        // Scale down rather than truncate or wrap: the phrase only means
+        // something whole, and a pill is meant to be one line.
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: color.withValues(alpha: 0.4)),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withValues(alpha: 0.4)),
             ),
             child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                    Icon(
-                        above ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                        size: 18,
-                        color: color,
-                    ),
-                    Text(
-                        '${delta.abs().toStringAsFixed(1)} '
-                        '${above ? 'above' : 'below'} your average', 
-                        style: theme.textTheme.labelMedium?.copyWith(
-                            color: color,
-                            letterSpacing: 0,
-                        ),
-                    ),
-                ],
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  above ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                  size: 18,
+                  color: color,
+                ),
+                Text(
+                  '${delta.abs().toStringAsFixed(1)} '
+                  '${above ? 'above' : 'below'} your average',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: color,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
             ),
+          ),
         );
     }
 }
@@ -592,41 +610,30 @@ class _StatRow extends StatelessWidget {
           decimalDigits: 0,
         );
 
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _StatTile(
-                  label: 'LIFETIME',
-                  value: lifetime?.toStringAsFixed(1) ?? '—',
-                  highlight: true,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatTile(
-                  label: 'THIS MONTH',
-                  value: peso.format(month),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: StreamBuilder<List<ServiceLog>>(
-                  stream: _serviceLogs(),
-                  builder: (context, serviceSnapshot) {
-                    final logs = serviceSnapshot.data ?? const <ServiceLog>[];
-                    final allIn = Maintenance.allInCostPerKm(entries, logs);
-                    
-                    return _StatTile(
-                      label: 'ALL-IN / KM',
-                      value: allIn == null ? '—' : '₱${allIn.toStringAsFixed(2)}',
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+        return AdaptiveRow(
+          children: [
+            _StatTile(
+              label: 'LIFETIME',
+              value: lifetime?.toStringAsFixed(1) ?? '—',
+              highlight: true,
+            ),
+            _StatTile(
+              label: 'THIS MONTH',
+              value: peso.format(month),
+            ),
+            StreamBuilder<List<ServiceLog>>(
+              stream: _serviceLogs(),
+              builder: (context, serviceSnapshot) {
+                final logs = serviceSnapshot.data ?? const <ServiceLog>[];
+                final allIn = Maintenance.allInCostPerKm(entries, logs);
+
+                return _StatTile(
+                  label: 'ALL-IN / KM',
+                  value: allIn == null ? '—' : '₱${allIn.toStringAsFixed(2)}',
+                );
+              },
+            ),
+          ],
         );
       },
     );
@@ -745,7 +752,7 @@ class _MaintenanceStripState extends State<_MaintenanceStrip> {
                   )
                 else ...[
                   SizedBox(
-                    height: 104,
+                    height: 104 * bodyTextScale(context),
                     child: PageView.builder(
                       controller: _controller,
                       itemCount: shown.length,

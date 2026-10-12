@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../data/database.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/adaptive_row.dart';
 
 typedef _Summary = ({
   Station station,
@@ -222,29 +223,24 @@ class StationsTab extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      r.station.name,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.titleMedium,
-                                    ),
+                              if (cheapest)
+                                Text(
+                                  'CHEAPEST',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.primary,
                                   ),
-                                  if (cheapest) ...[
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'CHEAPEST',
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                                ),
+                              Text(
+                                r.station.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium,
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                '${r.fills} fill-ups · ${peso.format(r.totalSpent)} total',
+                                '${r.fills} fill-up${r.fills == 1 ? '' : 's'} · ${peso.format(r.totalSpent)} total',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -263,15 +259,25 @@ class StationsTab extends StatelessWidget {
                                 : theme.colorScheme.onSurface,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          color: theme.colorScheme.onSurfaceVariant,
-                          onPressed: () => _rename(context, r.station),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          color: theme.colorScheme.onSurfaceVariant,
-                          onPressed: () => _delete(context, r.station),
+                        PopupMenuButton<_StationAction>(
+                          icon: Icon(
+                            Icons.more_vert,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          onSelected: (action) => switch (action) {
+                            _StationAction.rename => _rename(context, r.station),
+                            _StationAction.delete => _delete(context, r.station),
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: _StationAction.rename,
+                              child: Text('Rename'),
+                            ),
+                            PopupMenuItem(
+                              value: _StationAction.delete,
+                              child: Text('Delete'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -315,7 +321,8 @@ class _SummaryStrip extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          AdaptiveRow(
+            minChildWidth: 88,
             children: [
               _Cell(label: 'TOTAL SPENT', value: peso.format(totalSpent)),
               _Cell(label: 'AVG PRICE', value: '${peso.format(avgPrice)}/L'),
@@ -345,31 +352,31 @@ class _Cell extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontSize: 17,
+              letterSpacing: 0,
+              color: theme.colorScheme.onSurface,
             ),
           ),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontSize: 17,
-                letterSpacing: 0,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
+        )
+      ],
     );
   }
 }
+
+enum _StationAction { rename, delete }

@@ -103,7 +103,7 @@ class MaintenanceSheet extends StatelessWidget {
     final query = db.select(db.maintenanceItems)
       ..where((t) => t.bikeId.equals(bike.id));
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -323,7 +323,7 @@ class _EditMaintenanceSheetState extends State<EditMaintenanceSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.only(
         left: 20,
         right: 20,

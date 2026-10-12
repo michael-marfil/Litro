@@ -311,7 +311,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
