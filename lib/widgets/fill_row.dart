@@ -64,6 +64,18 @@ class FillRow extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (entry.note case final note?) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    note,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
