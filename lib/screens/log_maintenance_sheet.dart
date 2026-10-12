@@ -48,6 +48,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _odometer;
   late final TextEditingController _cost;
+  late final TextEditingController _note;
   
   ServiceLog? _editing;
   DateTime _date = DateTime.now();
@@ -61,6 +62,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
       text: widget.currentOdometer?.toString() ?? '',
     );
     _cost = TextEditingController();
+    _note = TextEditingController();
     _loadPreviousService();
   }
 
@@ -68,6 +70,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
   void dispose() {
     _odometer.dispose();
     _cost.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -115,6 +118,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
       _date = log.date;
       _odometer.text = log.odometer.toString();
       _cost.text = log.cost?.toStringAsFixed(0) ?? '';
+      _note.text = log.note ?? '';
     });
   }
 
@@ -124,6 +128,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     _date = DateTime.now();
     _odometer.text = widget.currentOdometer?.toString() ?? '';
     _cost.text = '';
+    _note.text = '';
   }
 
   Future<void> _save() async {
@@ -133,6 +138,8 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
     final odo = int.parse(_odometer.text.trim());
     final costText = _cost.text.trim();
     final cost = costText.isEmpty ? null : double.parse(costText);
+    final noteText = _note.text.trim();
+    final note = noteText.isEmpty ? null : noteText;
     final editing = _editing;
 
     // One writer, one transaction. The log is the record; the item's
@@ -148,6 +155,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
                 odometer: odo,
                 date: _date,
                 cost: Value(cost),
+                note: Value(note),
               ),
             );
       } else {
@@ -158,6 +166,7 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
                 odometer: Value(odo),
                 date: Value(_date),
                 cost: Value(cost),
+                note: Value(note),
               ),
             );
       }
@@ -282,14 +291,29 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        '${date.format(log.date)} · ${km.format(log.odometer)} km'
-                        '${log.cost == null ? '' : ' · ₱${log.cost!.toStringAsFixed(0)}'}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: _editing?.id == log.id
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${date.format(log.date)} · ${km.format(log.odometer)} km'
+                            '${log.cost == null ? '' : ' · ₱${log.cost!.toStringAsFixed(0)}'}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: _editing?.id == log.id
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          if (log.note case final note?)
+                            Text(
+                              note,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -376,6 +400,18 @@ class _LogMaintenanceSheetState extends State<LogMaintenanceSheet> {
                 helperText: 'Optional - parts and labour',
               ),
               validator: _optionalMoney,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _note,
+              minLines: 1,
+              maxLines: 3,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Note (optional)',
+                hintText: 'Shop, parts used, anything odd...',
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton(

@@ -55,6 +55,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     late final TextEditingController _price;
     late final TextEditingController _station;
     late final TextEditingController _liters;
+    late final TextEditingController _note;
 
     late DateTime _date;
     late bool _isFullTank;
@@ -72,6 +73,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       _amount = TextEditingController(text: e?.amountPaid.toString() ?? '');
       _price = TextEditingController(text: e?.pricePerLiter.toString() ?? '');
       _station = TextEditingController(text: widget.stationName ?? '');
+      _note = TextEditingController(text: e?.note ?? '');
       _liters = TextEditingController(text: e?.liters.toStringAsFixed(2) ?? '');
 
       _date = e?.date ?? DateTime.now();
@@ -101,6 +103,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         _amount.dispose();
         _price.dispose();
         _station.dispose();
+        _note.dispose();
         _liters.dispose();
         super.dispose();
     }
@@ -201,6 +204,11 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       final liters = _derived == _Money.liters
           ? amount / price
           : double.parse(_liters.text.trim());
+      
+      // Blank means no note - store null, not an empty string, so
+      // "has a note" stays a single honest check.
+      final noteText = _note.text.trim();
+      final note = noteText.isEmpty ? null : noteText;
 
       final odo = int.parse(_odometer.text.trim());
 
@@ -235,6 +243,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
             amountPaid: Value(double.parse(_amount.text.trim())),
             isFullTank: Value(_isFullTank),
             stationId: Value(stationId),
+            note: Value(note),
           ),
         );
       } else {
@@ -248,6 +257,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
             amountPaid: double.parse(_amount.text.trim()),
             isFullTank: _isFullTank,
             stationId: Value(stationId),
+            note: Value(note),
           ),
         );
       }
@@ -424,6 +434,19 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                                 );
                               },
                             ),
+
+                            TextFormField(
+                              controller: _note,
+                              minLines: 1,
+                              maxLines: 3,
+                              keyboardType: TextInputType.multiline,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(
+                                labelText: 'Note (optional)',
+                                hintText: 'Long trip, new tyres, different fuel…',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
 
                             SwitchListTile(
                                 value: _isFullTank,
