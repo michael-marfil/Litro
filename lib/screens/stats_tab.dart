@@ -4,48 +4,92 @@ import 'package:drift/drift.dart' show OrderingTerm, innerJoin;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:litro/domain/chart_range.dart';
 import 'package:litro/widgets/adaptive_row.dart';
 
 import '../data/database.dart';
 import '../domain/fuel_stats.dart';
 import '../domain/spending.dart';
 
-class StatsTab extends StatelessWidget {
+class StatsTab extends StatefulWidget {
   const StatsTab({super.key, required this.db, required this.bike});
 
   final AppDatabase db;
   final Bike bike;
 
   @override
-  Widget build(BuildContext context) {
-    final query = db.select(db.fuelEntries)
-      ..where((t) => t.bikeId.equals(bike.id))
-      ..orderBy([(t) => OrderingTerm.asc(t.odometer)]);
+  State<StatsTab> createState() => _StatsTabState();
+}
 
+class _StatsTabState extends State<StatsTab> {
+  ChartRange _range = ChartRange.sixMonths;
+  late Stream<List<FuelEntry>> _entries;
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = _watchEntries();
+  }
+
+  // Switching bikes keeps this State and hands it a new widget, so the query
+  // has to follow the bike rather than being built once and forgotten.
+  @override
+  void didUpdateWidget(StatsTab old) {
+    super.didUpdateWidget(old);
+    if (old.bike.id != widget.bike.id) _entries = _watchEntries();
+  }
+
+  Stream<List<FuelEntry>> _watchEntries() {
+    return (widget.db.select(widget.db.fuelEntries)
+          ..where((t) => t.bikeId.equals(widget.bike.id))
+          ..orderBy([(t) => OrderingTerm.asc(t.odometer)]))
+        .watch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<List<FuelEntry>>(
-      stream: query.watch(),
+      stream: _entries,
       builder: (context, snapshot) {
         final entries = snapshot.data;
         if (entries == null) {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // Window that gets plotted, never what gets measured. A tank's
+        // efficiency needs the full tank before it, which may fall outside
+        // the window - so measure against all of history, then keep only
+        // the points that land inside the range.
+        final cutoff = _range.cutoff(DateTime.now());
+        bool inRange(FuelEntry e) => cutoff == null || !e.date.isBefore(cutoff);
+
         final efficiency = <FlSpot>[];
-        for (final e in entries) {
+        for (final e in entries.where(inRange)) {
           final value = FuelStats.efficiencyForFullTank(entries, e);
           if (value != null) {
             efficiency.add(FlSpot(efficiency.length.toDouble(), value));
           }
         }
 
+        final shown = entries.where(inRange).toList();
         final price = <FlSpot>[
-          for (var i = 0; i < entries.length; i++)
-            FlSpot(i.toDouble(), entries[i].pricePerLiter),
+          for (var i = 0; i < shown.length; i++) 
+            FlSpot(i.toDouble(), shown[i].pricePerLiter),
         ];
 
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            SegmentedButton<ChartRange>(
+              segments: [
+                for (final r in ChartRange.values)
+                  ButtonSegment(value: r, label: Text(r.label)),
+              ],
+              selected: {_range},
+              onSelectionChanged: (s) => setState(() => _range = s.first),
+              showSelectedIcon: false,
+            ),
+            const SizedBox(height: 16),
             _ChartCard(
               title: 'FUEL EFFICIENCY',
               unit: 'km/L',
@@ -60,7 +104,12 @@ class StatsTab extends StatelessWidget {
               emptyHint: 'Log a couple of fill-ups to see price history.',
             ),
             const SizedBox(height: 12),
-            _SpendingCard(db: db, bikeId: bike.id, entries: entries),
+            _SpendingCard(
+              db: widget.db,
+              bikeId: widget.bike.id,
+              entries: entries,
+              monthCount: _range.months ?? 12,
+            ),
           ],
         );
       },
@@ -223,11 +272,13 @@ class _SpendingCard extends StatelessWidget {
     required this.db,
     required this.bikeId,
     required this.entries,
+    required this.monthCount,
   });
 
   final AppDatabase db;
   final int bikeId;
   final List<FuelEntry> entries;
+  final int monthCount;
 
   Stream<List<ServiceLog>> _serviceLogs() {
     final q = 
@@ -254,7 +305,12 @@ class _SpendingCard extends StatelessWidget {
       stream: _serviceLogs(),
       builder: (context, snapshot) {
         final logs = snapshot.data ?? const <ServiceLog>[];
-        final months = Spending.byMonth(entries, logs, DateTime.now());
+        final months = Spending.byMonth(
+          entries,
+          logs,
+          DateTime.now(),
+          months: monthCount,
+        );
 
         final maxY = months.fold<double>(
           0,
@@ -273,7 +329,7 @@ class _SpendingCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'SPENDING · LAST 6 MONTHS',
+                'SPENDING · LAST $monthCount MONTHS',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
