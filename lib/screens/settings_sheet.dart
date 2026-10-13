@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/backup.dart';
 import '../data/database.dart';
@@ -34,6 +36,7 @@ class SettingsSheet extends StatefulWidget {
 class _SettingsSheetState extends State<SettingsSheet> {
   String? _busy; // 'backup' | 'restore' | null
   bool _reminders = false;
+  PackageInfo? _info;
   ({String name, DateTime date})? _next;
   int _scheduled = 0;
 
@@ -74,10 +77,34 @@ class _SettingsSheetState extends State<SettingsSheet> {
     showAppAlert(context, 'Restored');
   }
 
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) setState(() => _info = info);
+  }
+
+  Future<void> _reportProblem() async {
+    final info = _info;
+    final version = info == null ? 'unknown' : '${info.version}+${info.buildNumber}';
+
+    final uri = Uri.https('github.com', '/michael-marfil/litro/issues/new', {
+      'title': 'Problem: ',
+      'body':
+        'What happened:\n\n\n'
+        'What you expected:\n\n\n'
+        '---\nLitro $version',
+    });
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      showAppAlert(context, "Couldn't open the browser", kind: AlertKind.error);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _loadReminderState();
+    _loadVersion();
   }
 
   Future<void> _loadReminderState() async {
@@ -208,6 +235,45 @@ class _SettingsSheetState extends State<SettingsSheet> {
             'way your history survives a lost device.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              Icons.bug_report_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            title: const Text('Report a problem'),
+            subtitle: const Text(
+              'Opens a form on GitHub with your app version filled in.',
+            ),
+            onTap: _reportProblem,
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              Icons.description_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            title: const Text('Open-source licences'),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: 'Litro',
+              applicationVersion: _info?.version,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              switch (_info) {
+                null => 'Litro',
+                final i => 'Litro ${i.version} (build ${i.buildNumber})',
+              },
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
